@@ -86,12 +86,14 @@ class MLP:
     @property
     def train_loss(self) -> float:
         with torch.no_grad():
-            return self.__loss_function(self.__y_train, self.__neural_network(self.__x_train)).item()
+            return self.__loss_function(self.__y_train,
+                                        self.__neural_network(self.__x_train)).item() / self.__y_train.size(dim=0)
 
     @property
     def test_loss(self) -> float:
         with torch.no_grad():
-            return self.__loss_function(self.__y_test, self.__neural_network(self.__x_test)).item()
+            return self.__loss_function(self.__y_test,
+                                        self.__neural_network(self.__x_test)).item() / self.__y_test.size(dim=0)
 
     def evaluate(self, values: numpy.ndarray) -> torch.Tensor:
         with torch.no_grad():
@@ -125,10 +127,10 @@ if __name__ == '__main__':
     file_path.mkdir()
     train_losses: typing.List[float] = []
     test_losses: typing.List[float] = []
-    values: typing.List[int] = [i for i in range(1, 20, 1)]
+    values: typing.List[int] = [i for i in range(10, 10000, 100)]
     for value in values:
         print(value)
-        mlp = MLP(device=device, neurons=value)
+        mlp = MLP(device=device, n_samples=value)
         mlp.train_neural_network()
         train_loss: float = mlp.train_loss
         test_loss: float = mlp.test_loss
