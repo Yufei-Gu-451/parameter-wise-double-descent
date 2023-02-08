@@ -1,3 +1,5 @@
+import pathlib
+
 import matplotlib.pyplot
 import numpy
 from sklearn import model_selection, datasets
@@ -8,11 +10,11 @@ import torch
 class MLP:
     def __init__(self,
                  device: torch.device,
-                 n_samples: int = 20,
+                 n_samples: int = 1000,
                  n_features: int = 1,
-                 noise: int = 10,
+                 noise: int = 20,
                  random_state: int = 42,
-                 test_size: float = 0.3,
+                 test_size: float = 0.9,
                  neurons: int = 25000,
                  lr: float = 1e-3,
                  weight_decay: float = 1e-5) -> None:
@@ -67,7 +69,7 @@ class MLP:
         return torch.nn.MSELoss()
 
     def _get_optimiser(self, lr: float, weight_decay: float) -> torch.optim.Optimizer:
-        return torch.optim.Adam(self.__neural_network.parameters(), lr=lr, weight_decay=weight_decay)
+        return torch.optim.Adamax(self.__neural_network.parameters(), lr=lr, weight_decay=weight_decay)
 
     def train_neural_network(self, epochs: int = 10) -> None:
         self.__neural_network.train()
@@ -89,7 +91,7 @@ class MLP:
         with torch.no_grad():
             return self.__loss_function(self.__y_test, self.__neural_network(self.__x_test)).item()
 
-    def evaluate(self, values: numpy.ndarray) -> numpy.ndarray:
+    def evaluate(self, values: numpy.ndarray) -> torch.Tensor:
         with torch.no_grad():
             return self.__neural_network(torch.from_numpy(values).to(self.__device).to(torch.float32))
 
@@ -97,24 +99,44 @@ class MLP:
     def epochs(self) -> int:
         return self.__epochs
 
+    def plot_data(self, path: pathlib.Path, title: str) -> None:
+        matplotlib.pyplot.title(title)
+        matplotlib.pyplot.xlabel("X")
+        matplotlib.pyplot.ylabel("Y")
+        matplotlib.pyplot.plot(self.__x, self.evaluate(self.__x).cpu().numpy(), c='r', label='Neural Network')
+        matplotlib.pyplot.scatter(self.__x_test.cpu().numpy(), self.__y_test.cpu().numpy(), c='g', label='Test')
+        matplotlib.pyplot.scatter(self.__x_train.cpu().numpy(), self.__y_train.cpu().numpy(), c='b', label='Train')
+        matplotlib.pyplot.legend()
+        matplotlib.pyplot.savefig(path)
+        matplotlib.pyplot.close()
+
 
 if __name__ == '__main__':
-    device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    file_path: pathlib.Path = pathlib.Path('./figures')
+    image_extension: str = '.png'
+    if file_path.exists() and file_path.is_dir():
+        for file in file_path.glob(f'*{image_extension}'):
+            file.unlink()
+        file_path.rmdir()
+    file_path.mkdir()
     train_losses: typing.List[float] = []
     test_losses: typing.List[float] = []
-    values: typing.List[int]=[i for i in range(1, 400000, 100)]
+    values: typing.List[int] = [i for i in range(1, 1000, 100)]
     for value in values:
         print(value)
-        mlp = MLP(device=device, neurons=value)
+        mlp = MLP(device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'), neurons=value)
         mlp.train_neural_network()
-        train_losses.append(mlp.train_loss)
-        test_losses.append(mlp.test_loss)
-        del mlp
+        train_loss: float = mlp.train_loss
+        test_loss: float = mlp.test_loss
+        train_losses.append(train_loss)
+        test_losses.append(test_loss)
+        mlp.plot_data(file_path / f'{value}{image_extension}',
+                      f'Neurons={round(value, 2)}, Train Loss={round(train_loss, 2)}, Test Loss={round(test_loss, 2)}')
+    matplotlib.pyplot.title('Losses')
     matplotlib.pyplot.xlabel("Neurons")
-    matplotlib.pyplot.ylabel("Train Loss")
-    matplotlib.pyplot.plot(values, train_losses)
-    matplotlib.pyplot.show()
-    matplotlib.pyplot.xlabel("Neurons")
-    matplotlib.pyplot.ylabel("Test Loss")
-    matplotlib.pyplot.plot(values, test_losses)
-    matplotlib.pyplot.show()
+    matplotlib.pyplot.ylabel("Loss")
+    matplotlib.pyplot.plot(values, train_losses, c='r', label='Train')
+    matplotlib.pyplot.plot(values, test_losses, c='g', label='Test')
+    matplotlib.pyplot.legend()
+    matplotlib.pyplot.savefig(file_path / f'loss{image_extension}')
+    matplotlib.pyplot.close()
