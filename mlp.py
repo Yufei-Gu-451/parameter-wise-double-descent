@@ -71,7 +71,7 @@ class MLP:
     def _get_optimiser(self, lr: float, weight_decay: float) -> torch.optim.Optimizer:
         return torch.optim.Adamax(self.__neural_network.parameters(), lr=lr, weight_decay=weight_decay)
 
-    def train_neural_network(self, epochs: int = 10) -> None:
+    def train_neural_network(self, epochs: int = 100) -> None:
         self.__neural_network.train()
         for epoch in range(epochs):
             loss: torch.Tensor = self.__loss_function(self.__y_train, self.__neural_network(self.__x_train))
@@ -112,6 +112,7 @@ class MLP:
 
 
 if __name__ == '__main__':
+    device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     file_path: pathlib.Path = pathlib.Path('./figures')
     image_extension: str = '.png'
     if file_path.exists() and file_path.is_dir():
@@ -121,10 +122,10 @@ if __name__ == '__main__':
     file_path.mkdir()
     train_losses: typing.List[float] = []
     test_losses: typing.List[float] = []
-    values: typing.List[int] = [i for i in range(1, 1000, 100)]
+    values: typing.List[int] = [i for i in range(1, 10000, 100)]
     for value in values:
         print(value)
-        mlp = MLP(device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'), neurons=value)
+        mlp = MLP(device=device, neurons=value)
         mlp.train_neural_network()
         train_loss: float = mlp.train_loss
         test_loss: float = mlp.test_loss
