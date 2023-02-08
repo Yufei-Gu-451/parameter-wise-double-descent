@@ -12,7 +12,7 @@ class MLP:
                  device: torch.device,
                  n_samples: int = 1000,
                  n_features: int = 1,
-                 noise: int = 20,
+                 noise: int = 10,
                  random_state: int = 42,
                  test_size: float = 0.9,
                  neurons: int = 25000,
@@ -63,7 +63,9 @@ class MLP:
 
     def _build_neural_network(self, neurons: int) -> torch.nn.Sequential:
         return torch.nn.Sequential(torch.nn.Linear(in_features=self.__n_features, out_features=neurons),
-                                   torch.nn.Linear(in_features=neurons, out_features=1)).to(self.__device)
+                                   torch.nn.ReLU(),
+                                   torch.nn.Linear(in_features=neurons, out_features=1),
+                                   ).to(self.__device)
 
     def _get_loss_function(self) -> torch.nn.modules.loss._Loss:
         return torch.nn.MSELoss()
@@ -71,7 +73,7 @@ class MLP:
     def _get_optimiser(self, lr: float, weight_decay: float) -> torch.optim.Optimizer:
         return torch.optim.Adamax(self.__neural_network.parameters(), lr=lr, weight_decay=weight_decay)
 
-    def train_neural_network(self, epochs: int = 100) -> None:
+    def train_neural_network(self, epochs: int = 1000) -> None:
         self.__neural_network.train()
         for epoch in range(epochs):
             loss: torch.Tensor = self.__loss_function(self.__y_train, self.__neural_network(self.__x_train))
@@ -103,9 +105,10 @@ class MLP:
         matplotlib.pyplot.title(title)
         matplotlib.pyplot.xlabel("X")
         matplotlib.pyplot.ylabel("Y")
-        matplotlib.pyplot.plot(self.__x, self.evaluate(self.__x).cpu().numpy(), c='r', label='Neural Network')
-        matplotlib.pyplot.scatter(self.__x_test.cpu().numpy(), self.__y_test.cpu().numpy(), c='g', label='Test')
-        matplotlib.pyplot.scatter(self.__x_train.cpu().numpy(), self.__y_train.cpu().numpy(), c='b', label='Train')
+        matplotlib.pyplot.scatter(self.__x[:, 0], self.evaluate(self.__x).cpu().numpy(), c='r', label='Neural Network')
+        matplotlib.pyplot.scatter(self.__x_test.cpu().numpy()[:, 0], self.__y_test.cpu().numpy(), c='g', label='Test')
+        matplotlib.pyplot.scatter(self.__x_train.cpu().numpy()[:, 0], self.__y_train.cpu().numpy(),
+                                  c='b', label='Train')
         matplotlib.pyplot.legend()
         matplotlib.pyplot.savefig(path)
         matplotlib.pyplot.close()
@@ -122,7 +125,7 @@ if __name__ == '__main__':
     file_path.mkdir()
     train_losses: typing.List[float] = []
     test_losses: typing.List[float] = []
-    values: typing.List[int] = [i for i in range(1, 10000, 100)]
+    values: typing.List[int] = [i for i in range(1, 20, 1)]
     for value in values:
         print(value)
         mlp = MLP(device=device, neurons=value)
@@ -134,7 +137,7 @@ if __name__ == '__main__':
         mlp.plot_data(file_path / f'{value}{image_extension}',
                       f'Neurons={round(value, 2)}, Train Loss={round(train_loss, 2)}, Test Loss={round(test_loss, 2)}')
     matplotlib.pyplot.title('Losses')
-    matplotlib.pyplot.xlabel("Neurons")
+    matplotlib.pyplot.xlabel("Value")
     matplotlib.pyplot.ylabel("Loss")
     matplotlib.pyplot.plot(values, train_losses, c='r', label='Train')
     matplotlib.pyplot.plot(values, test_losses, c='g', label='Test')
