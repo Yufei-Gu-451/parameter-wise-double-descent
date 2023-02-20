@@ -1,4 +1,5 @@
 import pathlib
+import random
 
 import matplotlib.pyplot
 import numpy
@@ -15,7 +16,8 @@ class MLP:
                  noise: int = 10,
                  random_state: int = 42,
                  test_size: float = 0.9,
-                 neurons: int = 25000,
+                 neurons: int = 2500,
+                 extra_layers: int = 1,
                  lr: float = 1e-3,
                  weight_decay: float = 1e-5) -> None:
         self.__random_state: typing.Optional[int] = random_state
@@ -34,7 +36,8 @@ class MLP:
         self.__y_train = torch.reshape(self.__y_train, (self.__y_train.shape + (1,)))
         self.__y_test = torch.reshape(self.__y_test, (self.__y_test.shape + (1,)))
         # Initialise Neural Network
-        self.__neural_network: torch.nn.Sequential = self._build_neural_network(neurons=neurons)
+        self.__neural_network: torch.nn.Sequential = self._build_neural_network(neurons=neurons,
+                                                                                extra_layers=extra_layers)
         # Initialise optimiser
         self.__loss_function: torch.nn.modules.loss._Loss = self._get_loss_function()
         self.__optimizer: torch.optim.Optimizer = self._get_optimiser(lr=lr, weight_decay=weight_decay)
@@ -43,6 +46,7 @@ class MLP:
 
     def _generate_dataset(self, n_samples: int, n_features: int, noise: int) \
             -> typing.Tuple[numpy.ndarray, numpy.ndarray]:
+        random.seed(self.__random_state)
         return datasets.make_regression(n_samples=n_samples,
                                         n_features=n_features,
                                         noise=noise,
@@ -61,11 +65,15 @@ class MLP:
             torch.from_numpy(y_train).to(torch.float32).to(self.__device), \
             torch.from_numpy(y_test).to(torch.float32).to(self.__device)
 
-    def _build_neural_network(self, neurons: int) -> torch.nn.Sequential:
-        return torch.nn.Sequential(torch.nn.Linear(in_features=self.__n_features, out_features=neurons),
-                                   torch.nn.ReLU(),
-                                   torch.nn.Linear(in_features=neurons, out_features=1),
-                                   ).to(self.__device)
+    def _build_neural_network(self, neurons: int, extra_layers: int) -> torch.nn.Sequential:
+        neural_network: torch.nn.Sequential = torch.nn.Sequential(
+            torch.nn.Linear(in_features=self.__n_features, out_features=neurons),
+            torch.nn.ReLU())
+        for layer in range(extra_layers):
+            neural_network.append(torch.nn.Linear(in_features=neurons, out_features=neurons))
+            neural_network.append(torch.nn.ReLU())
+        neural_network.append(torch.nn.Linear(in_features=neurons, out_features=1))
+        return neural_network.to(self.__device)
 
     def _get_loss_function(self) -> torch.nn.modules.loss._Loss:
         return torch.nn.MSELoss()
@@ -73,7 +81,7 @@ class MLP:
     def _get_optimiser(self, lr: float, weight_decay: float) -> torch.optim.Optimizer:
         return torch.optim.Adamax(self.__neural_network.parameters(), lr=lr, weight_decay=weight_decay)
 
-    def train_neural_network(self, epochs: int = 1000) -> None:
+    def train_neural_network(self, epochs: int = 10000) -> None:
         self.__neural_network.train()
         for epoch in range(epochs):
             loss: torch.Tensor = self.__loss_function(self.__y_train, self.__neural_network(self.__x_train))
