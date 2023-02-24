@@ -1,28 +1,35 @@
 import pathlib
 import random
+from enum import Enum
 
 import matplotlib.pyplot
 import numpy
 from sklearn import model_selection, datasets
 import typing
 import torch
+import torchvision
+from torchvision.transforms import functional
 
 
 class MLP:
     def __init__(self,
                  device: torch.device,
-                 n_samples: int = 1000,
+                 n_samples: int = 60000,
                  n_features: int = 1,
                  noise: int = 10,
                  random_state: int = 42,
-                 test_size: float = 0.9,
+                 test_size: float = 2/3,
                  neurons: int = 2500,
-                 extra_layers: int = 1,
+                 extra_layers: int = 0,
                  lr: float = 1e-3,
-                 weight_decay: float = 1e-5) -> None:
+                 weight_decay: float = 1e-5,
+                 classify: bool = True) -> None:
+        self.__classify: bool = classify
+        self.__classifications: typing.Optional[numpy.ndarray] = None
         self.__random_state: typing.Optional[int] = random_state
         self.__device: torch.device = device
         self.__n_features: int = n_features
+        self.__n_outputs: int = 1
         # Generate dataset
         self.__x: numpy.ndarray
         self.__y: numpy.ndarray
@@ -33,8 +40,6 @@ class MLP:
         self.__y_train: torch.Tensor
         self.__y_test: torch.Tensor
         self.__x_train, self.__x_test, self.__y_train, self.__y_test = self.__split_dataset(test_size=test_size)
-        self.__y_train = torch.reshape(self.__y_train, (self.__y_train.shape + (1,)))
-        self.__y_test = torch.reshape(self.__y_test, (self.__y_test.shape + (1,)))
         # Initialise Neural Network
         self.__neural_network: torch.nn.Sequential = self._build_neural_network(neurons=neurons,
                                                                                 extra_layers=extra_layers)
@@ -46,11 +51,34 @@ class MLP:
 
     def _generate_dataset(self, n_samples: int, n_features: int, noise: int) \
             -> typing.Tuple[numpy.ndarray, numpy.ndarray]:
-        random.seed(self.__random_state)
-        return datasets.make_regression(n_samples=n_samples,
-                                        n_features=n_features,
-                                        noise=noise,
-                                        random_state=self.__random_state)
+        def generate_classifier_dataset():
+            data = torchvision.datasets.MNIST(root='./MNIST', download=True)
+            xs = numpy.array(
+                [torch.reshape(torchvision.transforms.functional.pil_to_tensor(data[item][0]), (-1,)).numpy() for item
+                 in range(n_samples)])
+            base_ys = numpy.array([data[item][1] for item in range(n_samples)])
+            self.__classifications = numpy.unique(base_ys)
+            ys = numpy.array(
+                [[1 if classification == y else 0 for classification in self.__classifications] for y in base_ys])
+            self.__n_features = xs.shape[1]
+            self.__n_outputs = self.__classifications.shape[0]
+            return xs, ys
+
+        def generate_regression_dataset():
+            random.seed(self.__random_state)
+            xs: numpy.ndarray
+            ys: numpy.ndarray
+            xs, ys = datasets.make_regression(n_samples=n_samples,
+                                              n_features=n_features,
+                                              noise=noise,
+                                              random_state=self.__random_state)
+            ys = numpy.reshape(ys, ys.shape + (1,))
+            return xs, ys
+
+        if self.__classify:
+            return generate_classifier_dataset()
+        else:
+            return generate_regression_dataset()
 
     def __split_dataset(self, test_size: float) -> typing.Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         x_train: numpy.ndarray
@@ -72,7 +100,7 @@ class MLP:
         for layer in range(extra_layers):
             neural_network.append(torch.nn.Linear(in_features=neurons, out_features=neurons))
             neural_network.append(torch.nn.ReLU())
-        neural_network.append(torch.nn.Linear(in_features=neurons, out_features=1))
+        neural_network.append(torch.nn.Linear(in_features=neurons, out_features=self.__n_outputs))
         return neural_network.to(self.__device)
 
     def _get_loss_function(self) -> torch.nn.modules.loss._Loss:
@@ -81,7 +109,7 @@ class MLP:
     def _get_optimiser(self, lr: float, weight_decay: float) -> torch.optim.Optimizer:
         return torch.optim.Adamax(self.__neural_network.parameters(), lr=lr, weight_decay=weight_decay)
 
-    def train_neural_network(self, epochs: int = 10000) -> None:
+    def train_neural_network(self, epochs: int = 12000) -> None:
         self.__neural_network.train()
         for epoch in range(epochs):
             loss: torch.Tensor = self.__loss_function(self.__y_train, self.__neural_network(self.__x_train))
@@ -111,23 +139,52 @@ class MLP:
     def epochs(self) -> int:
         return self.__epochs
 
-    def plot_data(self, path: pathlib.Path, title: str) -> None:
+    def plot_data(self, path: pathlib.Path, title: str, image_extension:str, image_name:str) -> None:
+        def classify(y: numpy.ndarray):
+            return self.__classifications[y.argmax()]
+
+        test_results: numpy.ndarray = self.evaluate(self.__x_test.cpu().numpy()).cpu().numpy()
+        train_results: numpy.ndarray = self.evaluate(self.__x_train.cpu().numpy()).cpu().numpy()
+        y_train: numpy.ndarray = self.__y_train.cpu().numpy()
+        y_test: numpy.ndarray = self.__y_test.cpu().numpy()
+        assert (test_results.shape == y_test.shape)
+        assert (train_results.shape == y_train.shape)
+        assert (test_results.shape != train_results.shape)
         matplotlib.pyplot.title(title)
         matplotlib.pyplot.xlabel("X")
         matplotlib.pyplot.ylabel("Y")
-        matplotlib.pyplot.scatter(self.__x[:, 0], self.evaluate(self.__x).cpu().numpy(), c='r', label='Neural Network')
-        matplotlib.pyplot.scatter(self.__x_test.cpu().numpy()[:, 0], self.__y_test.cpu().numpy(), c='g', label='Test')
-        matplotlib.pyplot.scatter(self.__x_train.cpu().numpy()[:, 0], self.__y_train.cpu().numpy(),
-                                  c='b', label='Train')
-        matplotlib.pyplot.legend()
-        matplotlib.pyplot.savefig(path)
-        matplotlib.pyplot.close()
+        if self.__classify:
+            test_matches = [classify(test_results[row]) == classify(y_test[row]) for row in
+                            range(test_results.shape[0])]
+            matplotlib.pyplot.bar(["Correct", "Incorrect"], [test_matches.count(True), test_matches.count(False)])
+            matplotlib.pyplot.savefig(path/f'{image_name}_test{image_extension}')
+            matplotlib.pyplot.close()
+            train_matches = [classify(train_results[row]) == classify(y_train[row]) for row in
+                            range(train_results.shape[0])]
+            matplotlib.pyplot.bar(["Correct", "Incorrect"], [train_matches.count(True), train_matches.count(False)])
+            matplotlib.pyplot.savefig(path/f'{image_name}_train{image_extension}')
+            matplotlib.pyplot.close()
+        else:
+            # Should probably do PCA on x, y here rather than indexing 0
+            matplotlib.pyplot.scatter(self.__x_test.cpu().numpy()[:, 0], y_test[:, 0], c='g', label='Test')
+            matplotlib.pyplot.scatter(self.__x_test.cpu().numpy()[:, 0], test_results[:, 0], c='r',
+                                      label='Neural Network')
+            matplotlib.pyplot.scatter(self.__x_train.cpu().numpy()[:, 0], y_train[:, 0], c='b', label='Train')
+            matplotlib.pyplot.legend()
+            matplotlib.pyplot.savefig(path/f'{image_name}_test{image_extension}')
+            matplotlib.pyplot.close()
 
 
-if __name__ == '__main__':
+class DescentType(Enum):
+    MODEL_WISE = 0
+    SAMPLE_WISE = 1
+    EPOCH_WISE = 2
+
+
+def descend(values: typing.List[int], value_changed: str, descent_type: DescentType):
     device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    file_path: pathlib.Path = pathlib.Path('./figures')
-    image_extension: str = '.png'
+    file_path: pathlib.Path = pathlib.Path('figures')
+    image_extension: str = '.svg'
     if file_path.exists() and file_path.is_dir():
         for file in file_path.glob(f'*{image_extension}'):
             file.unlink()
@@ -135,17 +192,25 @@ if __name__ == '__main__':
     file_path.mkdir()
     train_losses: typing.List[float] = []
     test_losses: typing.List[float] = []
-    values: typing.List[int] = [i for i in range(10, 10000, 100)]
     for value in values:
         print(value)
-        mlp = MLP(device=device, n_samples=value)
-        mlp.train_neural_network()
+        mlp: MLP
+        if descent_type == DescentType.MODEL_WISE:
+            mlp = MLP(device=device, neurons=value)
+        elif descent_type == DescentType.SAMPLE_WISE:
+            mlp = MLP(device=device, n_samples=value)
+        else:
+            mlp = MLP(device=device)
+        if descent_type == DescentType.EPOCH_WISE:
+            mlp.train_neural_network(epochs=value)
+        else:
+            mlp.train_neural_network()
         train_loss: float = mlp.train_loss
         test_loss: float = mlp.test_loss
         train_losses.append(train_loss)
         test_losses.append(test_loss)
-        mlp.plot_data(file_path / f'{value}{image_extension}',
-                      f'Neurons={round(value, 2)}, Train Loss={round(train_loss, 2)}, Test Loss={round(test_loss, 2)}')
+        mlp.plot_data(file_path,
+                      f'{value_changed}={round(value, 2)}, Train Loss={round(train_loss, 2)}, Test Loss={round(test_loss, 2)}', image_extension=image_extension, image_name=value)
     matplotlib.pyplot.title('Losses')
     matplotlib.pyplot.xlabel("Value")
     matplotlib.pyplot.ylabel("Loss")
@@ -154,3 +219,19 @@ if __name__ == '__main__':
     matplotlib.pyplot.legend()
     matplotlib.pyplot.savefig(file_path / f'loss{image_extension}')
     matplotlib.pyplot.close()
+
+
+def model_wise_descend(values: typing.List[int]):
+    descend(values=values, value_changed='Neurons', descent_type=DescentType.MODEL_WISE)
+
+
+def sample_wise_descend(values: typing.List[int]):
+    descend(values=values, value_changed='Sample', descent_type=DescentType.SAMPLE_WISE)
+
+
+def epoch_wise_descend(values: typing.List[int]):
+    descend(values=values, value_changed='Epochs', descent_type=DescentType.EPOCH_WISE)
+
+
+if __name__ == '__main__':
+    model_wise_descend(values=[i for i in range(2, 10, 1)])
