@@ -15,14 +15,14 @@ from torchvision.transforms import functional
 class MLP:
     def __init__(self,
                  device: torch.device,
-                 n_samples: int = 60000,
+                 n_samples: int = 10000,
                  n_features: int = 1,
                  noise: int = 10,
                  random_state: int = 6839,
                  test_size: float = 0.5,
-                 neurons: int = 10000,
+                 neurons: int = 100000,
                  extra_layers: int = 0,
-                 lr: float = 1e-5,
+                 lr: float = 1e-3,
                  weight_decay: float = 1e-3,
                  classify: bool = True) -> None:
         self.__classify: bool = classify
@@ -57,6 +57,7 @@ class MLP:
             xs = numpy.array(
                 [torch.reshape(torchvision.transforms.functional.pil_to_tensor(data[item][0]), (-1,)).numpy() for item
                  in range(n_samples)])
+            xs = xs / numpy.linalg.norm(xs)
             base_ys = numpy.array([data[item][1] for item in range(n_samples)])
             self.__classifications = numpy.unique(base_ys)
             ys = numpy.array(
@@ -96,26 +97,28 @@ class MLP:
 
     def _build_neural_network(self, neurons: int, extra_layers: int) -> torch.nn.Sequential:
         neural_network: torch.nn.Sequential = torch.nn.Sequential(
-            torch.nn.Linear(in_features=self.__n_features, out_features=neurons)
+            torch.nn.Linear(in_features=self.__n_features, out_features=neurons),
+            torch.nn.ReLU()
         )
         for layer in range(extra_layers):
             neural_network.append(torch.nn.Linear(in_features=neurons, out_features=neurons))
+            neural_network.append(torch.nn.ReLU())
         neural_network.append(torch.nn.Linear(in_features=neurons, out_features=self.__n_outputs))
         if self.__classify:
             neural_network.append(torch.nn.Softmax(dim=1))
         return neural_network.to(self.__device)
 
     def _get_loss_function(self) -> torch.nn.modules.loss._Loss:
-        return torch.nn.CrossEntropyLoss()
+        return torch.nn.MSELoss()
 
     def _get_optimiser(self, lr: float, weight_decay: float) -> torch.optim.Optimizer:
-        return torch.optim.Adamax(self.__neural_network.parameters(), lr=lr)
+        return torch.optim.Adamax(self.__neural_network.parameters())
 
     def train_neural_network(self, epochs: int = 100000) -> None:
         self.__neural_network.train()
         for epoch in range(epochs):
-            loss: torch.Tensor = self.__loss_function(self.__y_train, self.__neural_network(self.__x_train))
             self.__optimizer.zero_grad()
+            loss: torch.Tensor = self.__loss_function(self.__y_train, self.__neural_network(self.__x_train))
             loss.backward()
             self.__optimizer.step()
             self.__epochs += 1
@@ -134,6 +137,7 @@ class MLP:
                                         self.__neural_network(self.__x_test)).item()  # / self.__y_test.size(dim=0)
 
     def evaluate(self, values: numpy.ndarray) -> torch.Tensor:
+        self.__neural_network.eval()
         with torch.no_grad():
             return self.__neural_network(torch.from_numpy(values).to(self.__device).to(torch.float32))
 
