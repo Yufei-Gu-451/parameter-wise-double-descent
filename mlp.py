@@ -270,8 +270,9 @@ class Descender:
 
 def main():
     classifier: Descender = Descender(classifier=True)
-    # classifier.sample_wise_descend(values=[i for i in range(100, int(1e4), 100)])
-    classifier.epoch_wise_descend(count=int(1e4))
+    # classifier.sample_wise_descend(values=list(range(int(1e2), int(5e3), int(1e2))))
+    # classifier.epoch_wise_descend(count=int(1e4))
+    classifier.model_wise_descend(values=list(range(int(1e3), int(1e5), int(1e3))))
 
 
 if __name__ == '__main__':
