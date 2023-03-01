@@ -15,6 +15,7 @@ from torchvision.transforms import functional
 class MLP:
     def __init__(self,
                  device: torch.device,
+                 classify: bool,
                  n_samples: int = int(1e4),
                  n_features: int = 1,
                  noise: int = 10,
@@ -23,8 +24,7 @@ class MLP:
                  neurons: int = int(1e5),
                  extra_layers: int = 0,
                  lr: float = 1e-3,
-                 weight_decay: float = 1e-3,
-                 classify: bool = True) -> None:
+                 weight_decay: float = 1e-3) -> None:
         self.__classify: bool = classify
         self.__classifications: typing.Optional[numpy.ndarray] = None
         self.__random_state: typing.Optional[int] = random_state
@@ -114,7 +114,7 @@ class MLP:
     def _get_optimiser(self, lr: float, weight_decay: float) -> torch.optim.Optimizer:
         return torch.optim.Adamax(self.__neural_network.parameters())
 
-    def train_neural_network(self, epochs: int = 100000) -> None:
+    def train_neural_network(self, epochs: int = 10000) -> None:
         self.__neural_network.train()
         for epoch in range(epochs):
             self.__optimizer.zero_grad()
@@ -146,9 +146,6 @@ class MLP:
         return self.__epochs
 
     def plot_data(self, path: pathlib.Path, title: str, image_extension: str, image_name: str) -> None:
-        def classify(y: numpy.ndarray):
-            return self.__classifications[y.argmax()]
-
         test_results: numpy.ndarray = self.evaluate(self.__x_test.cpu().numpy()).cpu().numpy()
         train_results: numpy.ndarray = self.evaluate(self.__x_train.cpu().numpy()).cpu().numpy()
         y_train: numpy.ndarray = self.__y_train.cpu().numpy()
@@ -158,26 +155,30 @@ class MLP:
         matplotlib.pyplot.title(title)
         matplotlib.pyplot.xlabel("X")
         matplotlib.pyplot.ylabel("Y")
-        if self.__classify:
-            test_matches = [classify(test_results[row]) == classify(y_test[row]) for row in
-                            range(test_results.shape[0])]
-            matplotlib.pyplot.bar(["Correct", "Incorrect"], [test_matches.count(True), test_matches.count(False)])
-            matplotlib.pyplot.savefig(path / f'{image_name}_test{image_extension}')
-            matplotlib.pyplot.close()
-            train_matches = [classify(train_results[row]) == classify(y_train[row]) for row in
-                             range(train_results.shape[0])]
-            matplotlib.pyplot.bar(["Correct", "Incorrect"], [train_matches.count(True), train_matches.count(False)])
-            matplotlib.pyplot.savefig(path / f'{image_name}_train{image_extension}')
-            matplotlib.pyplot.close()
-        else:
-            # Should probably do PCA on x, y here rather than indexing 0
-            matplotlib.pyplot.scatter(self.__x_test.cpu().numpy()[:, 0], y_test[:, 0], c='g', label='Test')
-            matplotlib.pyplot.scatter(self.__x_test.cpu().numpy()[:, 0], test_results[:, 0], c='r',
-                                      label='Neural Network')
-            matplotlib.pyplot.scatter(self.__x_train.cpu().numpy()[:, 0], y_train[:, 0], c='b', label='Train')
-            matplotlib.pyplot.legend()
-            matplotlib.pyplot.savefig(path / f'{image_name}_test{image_extension}')
-            matplotlib.pyplot.close()
+        # Should probably do PCA on x, y here rather than indexing 0
+        matplotlib.pyplot.scatter(self.__x_test.cpu().numpy()[:, 0], y_test[:, 0], c='g', label='Test')
+        matplotlib.pyplot.scatter(self.__x_test.cpu().numpy()[:, 0], test_results[:, 0], c='r',
+                                  label='Neural Network')
+        matplotlib.pyplot.scatter(self.__x_train.cpu().numpy()[:, 0], y_train[:, 0], c='b', label='Train')
+        matplotlib.pyplot.legend()
+        matplotlib.pyplot.savefig(path / (image_name+image_extension))
+        matplotlib.pyplot.close()
+
+    def classifier_precisions(self):
+        def classify(y: numpy.ndarray):
+            return self.__classifications[y.argmax()]
+
+        test_results: numpy.ndarray = self.evaluate(self.__x_test.cpu().numpy()).cpu().numpy()
+        train_results: numpy.ndarray = self.evaluate(self.__x_train.cpu().numpy()).cpu().numpy()
+        y_train: numpy.ndarray = self.__y_train.cpu().numpy()
+        y_test: numpy.ndarray = self.__y_test.cpu().numpy()
+        assert (test_results.shape == y_test.shape)
+        assert (train_results.shape == y_train.shape)
+        test_matches = [classify(test_results[row]) == classify(y_test[row]) for row in
+                        range(test_results.shape[0])]
+        train_matches = [classify(train_results[row]) == classify(y_train[row]) for row in
+                         range(train_results.shape[0])]
+        return train_matches.count(False) / len(train_matches), test_matches.count(False) / len(test_matches)
 
 
 class DescentType(Enum):
@@ -186,28 +187,55 @@ class DescentType(Enum):
     EPOCH_WISE = 2
 
 
-def descend(values: typing.List[int], value_changed: str, descent_type: DescentType):
-    device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    file_path: pathlib.Path = pathlib.Path('figures')
-    image_extension: str = '.svg'
+def plot_losses(file_name: str,
+                title: str,
+                values: typing.List[int],
+                train_losses: typing.List[float],
+                test_losses: typing.List[float],
+                descent_type: DescentType,
+                file_path: pathlib.Path,
+                image_extension: str):
+    matplotlib.pyplot.title(title)
+    matplotlib.pyplot.xlabel("Value")
+    matplotlib.pyplot.ylabel("Loss")
+    matplotlib.pyplot.plot(values[:len(train_losses)], train_losses, c='r', label='Train')
+    matplotlib.pyplot.plot(values[:len(test_losses)], test_losses, c='g', label='Test')
+    matplotlib.pyplot.legend()
+    matplotlib.pyplot.ylim(bottom=0)
+    if descent_type != DescentType.EPOCH_WISE:
+        matplotlib.pyplot.xscale(value='log', base=10)
+    matplotlib.pyplot.savefig(file_path / (file_name + image_extension))
+    matplotlib.pyplot.close()
+
+
+def setup_directory(file_path: pathlib.Path, image_extension: str):
     if file_path.exists() and file_path.is_dir():
         for file in file_path.glob(f'*{image_extension}'):
             file.unlink()
         file_path.rmdir()
     file_path.mkdir()
+
+
+def descend(values: typing.List[int], value_changed: str, descent_type: DescentType, classify: bool):
+    device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    file_path: pathlib.Path = pathlib.Path('figures')
+    image_extension: str = '.svg'
+    setup_directory(file_path=file_path, image_extension=image_extension)
     train_losses: typing.List[float] = []
     test_losses: typing.List[float] = []
+    train_precisions: typing.List[float] = []
+    test_precisions: typing.List[float] = []
     mlp: typing.Optional[MLP] = None
     for value in values:
         print(value)
         t = time.time()
         # Create/recreate neural network
         if descent_type == DescentType.MODEL_WISE:
-            mlp = MLP(device=device, neurons=value)
+            mlp = MLP(device=device, classify=classify, neurons=value)
         elif descent_type == DescentType.SAMPLE_WISE:
-            mlp = MLP(device=device, n_samples=value)
+            mlp = MLP(device=device, classify=classify, n_samples=value)
         else:
-            mlp = MLP(device=device) if mlp is None else mlp
+            mlp = MLP(device=device, classify=classify) if mlp is None else mlp
         # Train
         if descent_type == DescentType.EPOCH_WISE:
             mlp.train_neural_network(epochs=1)
@@ -219,32 +247,49 @@ def descend(values: typing.List[int], value_changed: str, descent_type: DescentT
         train_losses.append(train_loss)
         test_losses.append(test_loss)
         print(f"Train: {train_loss}, Test: {test_loss}")
-        mlp.plot_data(file_path,
-                      f'{value_changed}={round(value, 2)}, Train Loss={round(train_loss, 2)}, Test Loss={round(test_loss, 2)}',
-                      image_extension=image_extension, image_name=str(value))
-        matplotlib.pyplot.title(value_changed)
-        matplotlib.pyplot.xlabel("Value")
-        matplotlib.pyplot.ylabel("Loss")
-        matplotlib.pyplot.plot(values[:len(train_losses)], train_losses, c='r', label='Train')
-        matplotlib.pyplot.plot(values[:len(test_losses)], test_losses, c='g', label='Test')
-        matplotlib.pyplot.legend()
-        matplotlib.pyplot.ylim(bottom=0)
-        matplotlib.pyplot.savefig(file_path / f'loss{image_extension}')
-        matplotlib.pyplot.close()
+        if classify:
+            train_precision: float
+            test_precision: float
+            train_precision, test_precision = mlp.classifier_precisions()
+            train_precisions.append(train_precision)
+            test_precisions.append(test_precision)
+            plot_losses(file_name="precisions",
+                        title=value_changed,
+                        values=values,
+                        train_losses=train_precisions,
+                        test_losses=test_precisions,
+                        descent_type=descent_type,
+                        file_path=file_path,
+                        image_extension=image_extension)
+        else:
+            mlp.plot_data(file_path,
+                          f'{value_changed}={round(value, 2)}, Train Loss={round(train_loss, 2)}, Test Loss={round(test_loss, 2)}',
+                          image_extension=image_extension, image_name=str(value))
+        plot_losses(file_name="losses",
+                    title=value_changed,
+                    values=values,
+                    train_losses=train_losses,
+                    test_losses=test_losses,
+                    descent_type=descent_type,
+                    file_path=file_path,
+                    image_extension=image_extension)
         print(f"{time.time() - t} seconds")
 
 
-def model_wise_descend(values: typing.List[int]):
-    descend(values=values, value_changed='Neurons', descent_type=DescentType.MODEL_WISE)
+def model_wise_descend(values: typing.List[int], classify: bool):
+    descend(values=values, value_changed='Neurons', descent_type=DescentType.MODEL_WISE, classify=classify)
 
 
-def sample_wise_descend(values: typing.List[int]):
-    descend(values=values, value_changed='Samples', descent_type=DescentType.SAMPLE_WISE)
+def sample_wise_descend(values: typing.List[int], classify: bool):
+    descend(values=values, value_changed='Samples', descent_type=DescentType.SAMPLE_WISE, classify=classify)
 
 
-def epoch_wise_descend(count: int):
-    descend(values=[i for i in range(1, count)], value_changed='Epochs', descent_type=DescentType.EPOCH_WISE)
+def epoch_wise_descend(count: int, classify: bool):
+    descend(values=[i for i in range(1, count)],
+            value_changed='Epochs',
+            descent_type=DescentType.EPOCH_WISE,
+            classify=classify)
 
 
 if __name__ == '__main__':
-    epoch_wise_descend(count=1000)
+    epoch_wise_descend(count=10000, classify=True)
