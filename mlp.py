@@ -15,15 +15,15 @@ from torchvision.transforms import functional
 class MLP:
     def __init__(self,
                  device: torch.device,
-                 n_samples: int = 2000,
+                 n_samples: int = 60000,
                  n_features: int = 1,
                  noise: int = 10,
-                 random_state: int = 42,
-                 test_size: float = 2 / 3,
+                 random_state: int = 6839,
+                 test_size: float = 0.5,
                  neurons: int = 10000,
-                 extra_layers: int = 1,
-                 lr: float = 1e-3,
-                 weight_decay: float = 1e-5,
+                 extra_layers: int = 0,
+                 lr: float = 1e-5,
+                 weight_decay: float = 1e-3,
                  classify: bool = True) -> None:
         self.__classify: bool = classify
         self.__classifications: typing.Optional[numpy.ndarray] = None
@@ -102,14 +102,14 @@ class MLP:
             neural_network.append(torch.nn.Linear(in_features=neurons, out_features=neurons))
         neural_network.append(torch.nn.Linear(in_features=neurons, out_features=self.__n_outputs))
         if self.__classify:
-            neural_network.append(torch.nn.Sigmoid())
+            neural_network.append(torch.nn.Softmax(dim=1))
         return neural_network.to(self.__device)
 
     def _get_loss_function(self) -> torch.nn.modules.loss._Loss:
-        return torch.nn.MSELoss()
+        return torch.nn.CrossEntropyLoss()
 
     def _get_optimiser(self, lr: float, weight_decay: float) -> torch.optim.Optimizer:
-        return torch.optim.SGD(self.__neural_network.parameters(), lr=lr)
+        return torch.optim.Adamax(self.__neural_network.parameters(), lr=lr)
 
     def train_neural_network(self, epochs: int = 100000) -> None:
         self.__neural_network.train()
@@ -151,7 +151,6 @@ class MLP:
         y_test: numpy.ndarray = self.__y_test.cpu().numpy()
         assert (test_results.shape == y_test.shape)
         assert (train_results.shape == y_train.shape)
-        assert (test_results.shape != train_results.shape)
         matplotlib.pyplot.title(title)
         matplotlib.pyplot.xlabel("X")
         matplotlib.pyplot.ylabel("Y")
