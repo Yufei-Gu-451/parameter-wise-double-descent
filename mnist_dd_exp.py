@@ -13,6 +13,7 @@ momentum = 0.95
 learning_rate = 0.01
 lr_decay_rate = 0.9
 sample_size = 4000
+output_file = "plots/epoch=1000/epoch=1000.txt"
 
 #------------------------------------------------------------------------------------------
 
@@ -159,7 +160,7 @@ if __name__ == '__main__':
                 % (hidden_unit, train_loss, train_acc, test_loss, test_acc))
         
         # Write the training output to file
-        f = open("plots/epoch=1000/epoch=1000.txt", "a")
+        f = open(output_file, "a")
         f.write("Hidden Neurons : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; Test Acc : %.3f\n" \
                 % (hidden_unit, train_loss, train_acc, test_loss, test_acc))
         f.close()
