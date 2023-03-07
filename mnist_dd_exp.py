@@ -8,16 +8,17 @@ import os
 #------------------------------------------------------------------------------------------
 
 # Training Settings
-hidden_units = [5, 10, 20, 30, 80]
-n_epochs = 1000
+weight_reuse = True
+hidden_units = [1, 5, 10, 20, 30, 40, 45, 47, 49, 50, 51, 53, 55, 60, 80, 100]
+n_epochs = 400
 momentum = 0.95
 learning_rate = 0.01
 lr_decay_rate = 0.9
 sample_size = 4000
+
 directory = "assets/weight_reuse_case/epoch=%d" % n_epochs
-output_file = os.path.join(directory, "epoch=%.txt" % n_epochs)
+output_file = os.path.join(directory, "epoch=%d.txt" % n_epochs)
 checkpoint_path = os.path.join(directory, "ckpt")
-weight_reuse = False
 
 if not os.path.isdir(directory):
     os.mkdir(directory)
@@ -66,7 +67,7 @@ def get_train_and_test_dataloader(sample_size):
     testloader = torch.utils.data.DataLoader(testset, batch_size=128,
                                             shuffle=False, num_workers=4)
 
-    print('Load MINST dataset success')
+    print('Load MINST dataset success;')
 
     return trainloader, testloader
 
@@ -83,7 +84,7 @@ def get_model(hidden_unit):
         torch.nn.init.normal_(model.features[1].weight, mean=0.0, std=0.1)
         torch.nn.init.normal_(model.classifier.weight, mean=0.0, std=0.1)
         if weight_reuse:
-            print('Use previous checkpoints to initialize the weights')
+            print('Use previous checkpoints to initialize the weights:', end=' ')
             i = 1 # load the closest previous model for weight reuse
             while not os.path.exists(os.path.join(checkpoint_path, 'Simple_FC_%d.pth'%(hidden_unit-i))):
                 print('loading from simple_FC_%d.pth'%(hidden_unit-i))
@@ -94,6 +95,8 @@ def get_model(hidden_unit):
                 model.features[1].bias[:hidden_unit-i].copy_(checkpoint['net']['features.1.bias'])
                 model.classifier.weight[:, :hidden_unit-i].copy_(checkpoint['net']['classifier.weight'])
                 model.classifier.bias.copy_(checkpoint['net']['classifier.bias'])
+
+    print("Model with %d hidden neurons successfully generated;" % hidden_unit)
 
     return model
 
@@ -154,7 +157,7 @@ def test(testloader, model):
 
 # Train and Evalute the model
 def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterion, hidden_unit):
-    train_loss, train_acc, test_loss, test_acc, epoch = 0.0, 0.0, 0.0, 0.0, 0
+    train_loss, train_acc, epoch = 0.0, 0.0, 0
 
     # Stops the training within the pre-set epoch size or when the model fits the training set (99%)
     while epoch < n_epochs and train_acc < 0.99:
@@ -168,8 +171,8 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
 
         # Print the status of current training and testing outcome
         epoch += 1
-        print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; Test Acc : %.3f ; LR : %.3f" 
-                  % (epoch, train_loss, train_acc, test_loss, test_acc, optimizer.param_groups[0]['lr']))
+        print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f ; LR : %.3f" 
+                  % (epoch, train_loss, train_acc, optimizer.param_groups[0]['lr']))
 
     # Evaluate the model
     test_loss, test_acc = test(testloader, model)
@@ -180,7 +183,7 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
         'epoch': epoch,
     }
     torch.save(state, os.path.join(checkpoint_path, 'Simple_FC_%d.pth'%hidden_unit))
-    print("Torch saved successfully");
+    print("Torch saved successfully！");
 
     return train_loss, train_acc, test_loss, test_acc
 
@@ -188,11 +191,10 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
 if __name__ == '__main__':
     # Initialization
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print('Using device :', device)
+    print('Using device : ', device)
 
     # Get the training and testing data of specific sample size
     trainloader, testloader = get_train_and_test_dataloader(sample_size)
-
 
     # Main Training Unit
     for hidden_unit in hidden_units:
@@ -205,7 +207,7 @@ if __name__ == '__main__':
 
         # Train and evalute the model
         train_loss, train_acc, test_loss, test_acc = train_and_evaluate_model(trainloader, testloader, \
-                                    model, hidden_unit, optimizer, criterion)
+                                    model, optimizer, criterion, hidden_unit)
 
         # Print training and evaluation outcome
         print("\nHidden Neurons : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; Test Acc : %.3f\n\n" \
