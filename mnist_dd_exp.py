@@ -9,7 +9,7 @@ import os
 
 # Training Settings
 weight_reuse = True
-hidden_units = [1, 5, 10, 20, 30, 40, 45, 47, 49, 50, 51, 53, 55, 60, 80, 100]
+hidden_units = [1, 5, 10, 20, 30, 40, 45, 47, 49, 50, 51, 53, 55, 60, 70, 80, 90, 100]
 n_epochs = 400
 momentum = 0.95
 learning_rate = 0.01
@@ -84,10 +84,10 @@ def get_model(hidden_unit):
         torch.nn.init.normal_(model.features[1].weight, mean=0.0, std=0.1)
         torch.nn.init.normal_(model.classifier.weight, mean=0.0, std=0.1)
         if weight_reuse:
-            print('Use previous checkpoints to initialize the weights:', end=' ')
+            print('Use previous checkpoints to initialize the weights:')
             i = 1 # load the closest previous model for weight reuse
             while not os.path.exists(os.path.join(checkpoint_path, 'Simple_FC_%d.pth'%(hidden_unit-i))):
-                print('loading from simple_FC_%d.pth'%(hidden_unit-i))
+                print('     loading from simple_FC_%d.pth'%(hidden_unit-i))
                 i += 1
             checkpoint = torch.load(os.path.join(checkpoint_path, 'Simple_FC_%d.pth'%(hidden_unit-i)))
             with torch.no_grad():
@@ -160,7 +160,7 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
     train_loss, train_acc, epoch = 0.0, 0.0, 0
 
     # Stops the training within the pre-set epoch size or when the model fits the training set (99%)
-    while epoch < n_epochs and train_acc < 0.99:
+    while epoch < n_epochs and train_acc < 1.0:
         # Perform weight decay before the interpolation threshold
         # LR decay by lr_decay_rate percent after every `200` epochs
         if hidden_unit <= 50 and epoch > 1 and epoch % 200 == 1:

@@ -1,9 +1,13 @@
 import matplotlib.pyplot as plt
+import os
 import re
 
-test = 'epoch=1000'
-directory = 'plots/' + test + '/'
-input_file = directory + test + '.txt'
+epochs = 400
+directory = 'assets/weight_reuse_case/epoch=%d/plots' % epochs
+input_file = 'assets/weight_reuse_case/epoch=%d/epoch=%d.txt' % (epochs, epochs)
+
+if not os.path.isdir(directory):
+    os.mkdir(directory)
 
 if __name__ == '__main__':
     array = []
@@ -32,7 +36,7 @@ if __name__ == '__main__':
     plt.xlabel('Number of Hidden Units')
     plt.ylabel('MSE loss')
     plt.title('Double Descent Curve')
-    plt.savefig(directory + 'MSE-Neurons.png')
+    plt.savefig(os.path.join(directory, 'MSE-Neurons.png'))
 
     plt.figure()
     plt.plot(parameters, train_losses, marker='o', label='train')
@@ -40,7 +44,7 @@ if __name__ == '__main__':
     plt.xlabel('Number of Model Parameters')
     plt.ylabel('MSE loss')
     plt.title('Double Descent Curve')
-    plt.savefig(directory + 'MSE-Parameters.png')
+    plt.savefig(os.path.join(directory, 'MSE-Parameters.png'))
 
     plt.figure()
     plt.plot(hidden_units, train_accs, marker='o', label='train')
@@ -48,7 +52,7 @@ if __name__ == '__main__':
     plt.xlabel('Number of Hidden Units')
     plt.ylabel('Accuracy')
     plt.title('Double Descent Curve')
-    plt.savefig(directory + 'Accuracy-Neurons.png')
+    plt.savefig(os.path.join(directory, 'Accuracy-Neurons.png'))
 
     plt.figure()
     plt.plot(parameters, train_accs, marker='o', label='train')
@@ -56,4 +60,4 @@ if __name__ == '__main__':
     plt.xlabel('Number of Model Parameters')
     plt.ylabel('MSE loss')
     plt.title('Double Descent Curve')
-    plt.savefig(directory + 'Accuracy-Parameters.png')
+    plt.savefig(os.path.join(directory, 'Accuracy-Parameters.png'))
