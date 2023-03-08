@@ -1,0 +1,3 @@
+Number of parameters: 3985
+Training Loss: 0.042 | Acc: 61.150%
+Test Loss: 0.053 | Acc: 54.440%
