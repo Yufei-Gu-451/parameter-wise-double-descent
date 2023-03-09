@@ -4,19 +4,20 @@ import torch.nn as nn
 import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 import os
+import numpy as np
 
 #------------------------------------------------------------------------------------------
 
 # Training Settings
 weight_reuse = True
-hidden_units = [1, 5, 10, 20, 30, 40, 45, 47, 49, 50, 51, 53, 55, 60, 70, 80, 90, 100]
-n_epochs = 400
+hidden_units = [1, 3, 5, 7, 9, 10, 20, 30, 40, 45, 47, 49, 50, 51, 53, 55, 60, 70, 80, 90, 100, 110, 130, 150, 170, 200]
+n_epochs = 6000
 momentum = 0.95
 learning_rate = 0.01
 lr_decay_rate = 0.9
 sample_size = 4000
 
-directory = "assets/weight_reuse_case/epoch=%d" % n_epochs
+directory = "assets/weight-reuse-case/epoch=%d" % n_epochs
 output_file = os.path.join(directory, "epoch=%d.txt" % n_epochs)
 checkpoint_path = os.path.join(directory, "ckpt")
 
@@ -57,8 +58,7 @@ def get_train_and_test_dataloader(sample_size):
 
     trainset = datasets.MNIST(root='./data', train=True,
                                             download=True, transform = transform_train)
-    subset = list(range(0, sample_size, 1))
-    trainset_sub = torch.utils.data.Subset(trainset, subset)
+    trainset_sub = torch.utils.data.Subset(trainset, indices = np.arange(4000))
     trainloader = torch.utils.data.DataLoader(trainset_sub, batch_size=128,
                                             shuffle=True, num_workers=4)
 
@@ -98,6 +98,7 @@ def get_model(hidden_unit):
 
     print("Model with %d hidden neurons successfully generated;" % hidden_unit)
 
+    print('Number of parameters: %d'%sum(p.numel() for p in model.parameters()))
     return model
 
 
@@ -116,9 +117,9 @@ def train(trainloader, model, optimizer, criterion):
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
+        # Calculate the Testing Loss
         cumulative_loss += loss.item()
-
-        # Calculate the training accuracy
+        # Calculate the Training Accuracy
         _, predicted = outputs.max(1)
         total += labels.size(0)
         correct += predicted.eq(labels.argmax(1)).sum().item()
@@ -142,9 +143,9 @@ def test(testloader, model):
             labels = labels.to(device)
             outputs = model(inputs)
             loss = criterion(outputs, labels)
+            # Calculate the Testing Loss
             cumulative_loss += loss.item()
-
-            # Calculate the testing accuracy
+            # Calculate the Testing Accuracy
             _, predicted = outputs.max(1)
             total += labels.size(0)
             correct += predicted.eq(labels.argmax(1)).sum().item()
@@ -160,10 +161,10 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
     train_loss, train_acc, epoch = 0.0, 0.0, 0
 
     # Stops the training within the pre-set epoch size or when the model fits the training set (99%)
-    while epoch < n_epochs and train_acc < 1.0:
+    while epoch < n_epochs:
         # Perform weight decay before the interpolation threshold
-        # LR decay by lr_decay_rate percent after every `200` epochs
-        if hidden_unit <= 50 and epoch > 1 and epoch % 200 == 1:
+        # LR decay by lr_decay_rate percent after every `500` epochs
+        if hidden_unit <= 50 and epoch > 1 and epoch % 500 == 1:
             optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] * lr_decay_rate
 
         # Train the model
@@ -173,6 +174,9 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
         epoch += 1
         print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f ; LR : %.3f" 
                   % (epoch, train_loss, train_acc, optimizer.param_groups[0]['lr']))
+
+        if hidden_unit < 50 and train_acc == 1:
+            break
 
     # Evaluate the model
     test_loss, test_acc = test(testloader, model)
