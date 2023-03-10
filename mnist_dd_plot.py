@@ -3,8 +3,8 @@ import os
 import re
 
 epochs = 400
-directory = 'assets/weight_reuse_case/epoch=%d/plots' % epochs
-input_file = 'assets/weight_reuse_case/epoch=%d/epoch=%d.txt' % (epochs, epochs)
+directory = 'assets/weight-reuse-case/epoch=%d-2/plots' % epochs
+input_file = 'assets/weight-reuse-case/epoch=%d-2/epoch=%d.txt' % (epochs, epochs)
 
 if not os.path.isdir(directory):
     os.mkdir(directory)

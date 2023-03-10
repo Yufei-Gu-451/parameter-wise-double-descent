@@ -10,14 +10,16 @@ import numpy as np
 
 # Training Settings
 weight_reuse = True
-hidden_units = [1, 3, 5, 7, 9, 10, 20, 30, 40, 45, 47, 49, 50, 51, 53, 55, 60, 70, 80, 90, 100, 110, 130, 150, 170, 200]
-n_epochs = 6000
+#hidden_units = [1, 3, 5, 7, 9, 10, 20, 30, 40, 45, 47, 49, 50, 51, 53, 55, 60, 70, 80, 90, 100, 110, 130, 150, 170, 200]
+#hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]
+hidden_units = [110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
+n_epochs = 400
 momentum = 0.95
 learning_rate = 0.01
 lr_decay_rate = 0.9
 sample_size = 4000
 
-directory = "assets/weight-reuse-case/epoch=%d" % n_epochs
+directory = "assets/weight-reuse-case/epoch=%d-2" % n_epochs
 output_file = os.path.join(directory, "epoch=%d.txt" % n_epochs)
 checkpoint_path = os.path.join(directory, "ckpt")
 
@@ -164,7 +166,7 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
     while epoch < n_epochs:
         # Perform weight decay before the interpolation threshold
         # LR decay by lr_decay_rate percent after every `500` epochs
-        if hidden_unit <= 50 and epoch > 1 and epoch % 500 == 1:
+        if epoch > 1 and epoch % 500 == 1:
             optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] * lr_decay_rate
 
         # Train the model
