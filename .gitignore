@@ -1,5 +1,6 @@
 .DS_Store
 ckpt/
+data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

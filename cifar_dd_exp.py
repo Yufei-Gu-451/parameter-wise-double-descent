@@ -11,18 +11,17 @@ import numpy as np
 # Training Settings
 weight_reuse = True
 #hidden_units = [1, 3, 5, 7, 9, 10, 20, 30, 40, 45, 47, 49, 50, 51, 53, 55, 60, 70, 80, 90, 100, 110, 130, 150, 170, 200]
-#hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]
-hidden_units = [110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
+hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]
 n_epochs = 400
 momentum = 0.95
 learning_rate = 0.01
 lr_decay_rate = 0.9
-sample_size = 4000
+sample_size = 1000
 
 if weight_reuse:
-    directory = "assets/mnist/weight-reuse-case/epoch=%d-2" % n_epochs
+    directory = "assets/cifar-10/weight-reuse-case/epoch=%d" % n_epochs
 else:
-    directory = "assets/mnist/standard-case/epoch=%d-2" % n_epochs
+    directory = "assets/cifar-10/standard-case/epoch=%d" % n_epochs
 output_file = os.path.join(directory, "epoch=%d.txt" % n_epochs)
 checkpoint_path = os.path.join(directory, "ckpt")
 
@@ -39,7 +38,7 @@ class simple_FC(nn.Module):
         super(simple_FC, self).__init__()
         self.features = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(784, n_hidden),
+            nn.Linear(1024, n_hidden),
             nn.ReLU()
         )
         self.classifier = nn.Linear(n_hidden, 10)
@@ -61,18 +60,18 @@ def get_train_and_test_dataloader():
         transforms.ToTensor(),
     ])
 
-    trainset = datasets.MNIST(root='./data', train=True,
+    trainset = datasets.CIFAR10(root='./data', train=True,
                                             download=True, transform = transform_train)
-    trainset_sub = torch.utils.data.Subset(trainset, indices = np.arange(4000))
+    trainset_sub = torch.utils.data.Subset(trainset, indices = np.arange(sample_size))
     trainloader = torch.utils.data.DataLoader(trainset_sub, batch_size=128,
                                             shuffle=True, num_workers=4)
 
-    testset = datasets.MNIST(root='./data', train=False,
+    testset = datasets.CIFAR10(root='./data', train=False,
                                         download=True, transform = transform_test)
     testloader = torch.utils.data.DataLoader(testset, batch_size=128,
                                             shuffle=False, num_workers=4)
 
-    print('Load MINST dataset success;')
+    print('Load CIFAR-10 dataset success;')
 
     return trainloader, testloader
 
@@ -117,6 +116,7 @@ def train(trainloader, model, optimizer, criterion):
         labels = torch.nn.functional.one_hot(labels, num_classes=10).float()
         inputs = inputs.to(device)
         labels = labels.to(device)
+        print(len(inputs), len(labels))
         optimizer.zero_grad()
         outputs = model(inputs)
         loss = criterion(outputs, labels)
@@ -146,6 +146,7 @@ def test(testloader, model):
             labels = torch.nn.functional.one_hot(labels, num_classes=10).float()
             inputs = inputs.to(device)
             labels = labels.to(device)
+            print(len(labels))
             outputs = model(inputs)
             loss = criterion(outputs, labels)
             # Calculate the Testing Loss
@@ -203,12 +204,13 @@ if __name__ == '__main__':
     print('Using device : ', device)
 
     # Get the training and testing data of specific sample size
-    trainloader, testloader = get_train_and_test_dataloader(sample_size)
+    trainloader, testloader = get_train_and_test_dataloader()
 
     # Main Training Unit
     for hidden_unit in hidden_units:
         # Generate the model with specific number of hidden_unit
         model = get_model(hidden_unit)
+        parameters = sum(p.numel() for p in model.parameters())
 
         # Set the optimizer and criterion 
         optimizer = torch.optim.SGD(model.parameters(), momentum=momentum, lr=learning_rate)
@@ -219,11 +221,11 @@ if __name__ == '__main__':
                                     model, optimizer, criterion, hidden_unit)
 
         # Print training and evaluation outcome
-        print("\nHidden Neurons : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; Test Acc : %.3f\n\n" \
-                % (hidden_unit, train_loss, train_acc, test_loss, test_acc))
+        print("\nHidden Neurons : %d ; Parameters : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; Test Acc : %.3f\n\n" \
+                % (hidden_unit, parameters, train_loss, train_acc, test_loss, test_acc))
 
         # Write the training and evaluation output to file
         f = open(output_file, "a")
-        f.write("Hidden Neurons : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; Test Acc : %.3f\n" \
-                % (hidden_unit, train_loss, train_acc, test_loss, test_acc))
+        f.write("Hidden Neurons : %d ; Parameters : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; Test Acc : %.3f\n" \
+                % (hidden_unit, parameters, train_loss, train_acc, test_loss, test_acc))
         f.close()
