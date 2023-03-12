@@ -10,12 +10,13 @@ import torch.backends.cudnn as cudnn
 
 # Training Settings
 weight_reuse = True
-hidden_units = [1, 5, 10, 20, 30, 40, 45, 47, 49, 50, 51, 53, 55, 60, 70, 80, 90, 100]
-n_epochs = 1000
+hidden_units = [1, 5, 10, 20, 30, 40, 45, 47, 49, 50, 51, 53, 55, 60, 70, 80, 90, 100, 150, 200]
+n_epochs = 5000
 momentum = 0.95
 learning_rate = 0.01
 lr_decay_rate = 0.9
 sample_size = 4000
+epoch_steps = 42
 
 directory = "assets/weight_reuse_case/epoch=%d" % n_epochs
 output_file = os.path.join(directory, "epoch=%d.txt" % n_epochs)
@@ -60,12 +61,12 @@ def get_train_and_test_dataloader(sample_size):
                                             download=True, transform = transform_train)
     subset = list(range(0, sample_size, 1))
     trainset_sub = torch.utils.data.Subset(trainset, subset)
-    trainloader = torch.utils.data.DataLoader(trainset_sub, batch_size=128,
+    trainloader = torch.utils.data.DataLoader(trainset_sub, batch_size=256,
                                             shuffle=True, num_workers=4)
 
     testset = datasets.MNIST(root='./data', train=False,
                                         download=True, transform = transform_test)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=128,
+    testloader = torch.utils.data.DataLoader(testset, batch_size=100,
                                             shuffle=False, num_workers=4)
 
     print('Load MINST dataset success;')
@@ -81,6 +82,9 @@ def get_model(hidden_unit):
     if hidden_unit == 1:
         torch.nn.init.xavier_uniform_(model.features[1].weight, gain=1.0)
         torch.nn.init.xavier_uniform_(model.classifier.weight, gain=1.0)
+    elif hidden_unit > 50: # interpolation point: Number of data (4000) * number of class (10) = number of parameters (50*784 + 50 + 50*10 + 10)
+        torch.nn.init.normal_(model.features[1].weight, mean=0.0, std=0.1)
+        torch.nn.init.normal_(model.classifier.weight, mean=0.0, std=0.1)
     else:
         torch.nn.init.normal_(model.features[1].weight, mean=0.0, std=0.1)
         torch.nn.init.normal_(model.classifier.weight, mean=0.0, std=0.1)
@@ -164,7 +168,7 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
     while epoch < n_epochs and train_acc < 1.0:
         # Perform weight decay before the interpolation threshold
         # LR decay by lr_decay_rate percent after every `200` epochs
-        if hidden_unit <= 50 and epoch > 1 and epoch % 200 == 1:
+        if hidden_unit <= 50 and epoch > 1 and epoch % epoch_steps == 1:
             optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] * lr_decay_rate
 
         # Train the model
@@ -184,7 +188,7 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
         'epoch': epoch,
     }
     torch.save(state, os.path.join(checkpoint_path, 'Simple_FC_%d.pth'%hidden_unit))
-    print("Torch saved successfully！");
+    print("Torch saved successfully！")
 
     return train_loss, train_acc, test_loss, test_acc
 
@@ -194,6 +198,7 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print('Using device : ', device)
     if(device == 'gpu'):
+        print("using cudnn benchmark")
         cudnn.benchmark = True
     
     # Get the training and testing data of specific sample size

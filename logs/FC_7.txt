@@ -1,3 +1,0 @@
-Number of parameters: 5575
-Training Loss: 0.025 | Acc: 80.400%
-Test Loss: 0.044 | Acc: 70.320%

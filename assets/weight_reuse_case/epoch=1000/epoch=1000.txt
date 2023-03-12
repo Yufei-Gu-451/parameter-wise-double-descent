@@ -1,1 +1,0 @@
-Hidden Neurons : 1 ; Train Loss : 0.089948 ; Train Acc : 0.111 ; Test Loss : 0.089989 ; Test Acc : 0.114

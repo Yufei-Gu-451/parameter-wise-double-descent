@@ -1,3 +1,0 @@
-Number of parameters: 7960
-Training Loss: 0.006 | Acc: 97.875%
-Test Loss: 0.042 | Acc: 81.470%

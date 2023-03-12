@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import os
 import re
 
-epochs = 1000
+epochs = 500
 directory = 'assets/weight_reuse_case/epoch=%d/plots' % epochs
 input_file = 'assets/weight_reuse_case/epoch=%d/epoch=%d.txt' % (epochs, epochs)
 

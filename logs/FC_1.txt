@@ -1,3 +1,0 @@
-Number of parameters: 805
-Training Loss: 0.079 | Acc: 21.800%
-Test Loss: 0.080 | Acc: 21.200%
