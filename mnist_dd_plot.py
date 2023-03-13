@@ -22,13 +22,11 @@ if __name__ == '__main__':
 
     for pair in array:
         hidden_units.append(float(pair[0]))
-        train_losses.append(float(pair[1]))
-        train_accs.append(float(pair[2]))
-        test_losses.append(float(pair[3]))
-        test_accs.append(float(pair[4]))
-
-    for hidden_unit in hidden_units:
-        parameters.append(784 * hidden_unit + hidden_unit * 10)
+        parameters.append(float(pair[1]))
+        train_losses.append(float(pair[2]))
+        train_accs.append(float(pair[3]))
+        test_losses.append(float(pair[4]))
+        test_accs.append(float(pair[5]))
 
     plt.figure()
     plt.plot(hidden_units, train_losses, marker='o', label='train')

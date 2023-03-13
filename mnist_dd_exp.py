@@ -209,6 +209,7 @@ if __name__ == '__main__':
     for hidden_unit in hidden_units:
         # Generate the model with specific number of hidden_unit
         model = get_model(hidden_unit)
+        parameters = sum(p.numel() for p in model.parameters())
 
         # Set the optimizer and criterion 
         optimizer = torch.optim.SGD(model.parameters(), momentum=momentum, lr=learning_rate)
@@ -219,11 +220,11 @@ if __name__ == '__main__':
                                     model, optimizer, criterion, hidden_unit)
 
         # Print training and evaluation outcome
-        print("\nHidden Neurons : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; Test Acc : %.3f\n\n" \
-                % (hidden_unit, train_loss, train_acc, test_loss, test_acc))
+        print("\nHidden Neurons : %d ; Parameters : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; Test Acc : %.3f\n\n" \
+                % (hidden_unit, parameters, train_loss, train_acc, test_loss, test_acc))
 
         # Write the training and evaluation output to file
         f = open(output_file, "a")
-        f.write("Hidden Neurons : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; Test Acc : %.3f\n" \
-                % (hidden_unit, train_loss, train_acc, test_loss, test_acc))
+        f.write("Hidden Neurons : %d ; Parameters : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; Test Acc : %.3f\n" \
+                % (hidden_unit, parameters, train_loss, train_acc, test_loss, test_acc))
         f.close()
