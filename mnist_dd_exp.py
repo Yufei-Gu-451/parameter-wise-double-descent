@@ -9,20 +9,19 @@ import numpy as np
 #------------------------------------------------------------------------------------------
 
 # Training Settings
-weight_reuse = True
-#hidden_units = [1, 3, 5, 7, 9, 10, 20, 30, 40, 45, 47, 49, 50, 51, 53, 55, 60, 70, 80, 90, 100, 110, 130, 150, 170, 200]
-#hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]
-hidden_units = [110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
-n_epochs = 400
+weight_reuse = False
+hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 110, 130, 150, 200, 400, 600, 800, 1000]
+n_epochs = 6000
 momentum = 0.95
 learning_rate = 0.01
 lr_decay_rate = 0.9
 sample_size = 4000
 
 if weight_reuse:
-    directory = "assets/mnist/weight-reuse-case/epoch=%d-2" % n_epochs
+    directory = "assets/mnist/weight-reuse-case/epoch=%d" % n_epochs
 else:
-    directory = "assets/mnist/standard-case/epoch=%d-2" % n_epochs
+    directory = "assets/mnist/standard-case/epoch=%d" % n_epochs
+
 output_file = os.path.join(directory, "epoch=%d.txt" % n_epochs)
 checkpoint_path = os.path.join(directory, "ckpt")
 
@@ -203,7 +202,7 @@ if __name__ == '__main__':
     print('Using device : ', device)
 
     # Get the training and testing data of specific sample size
-    trainloader, testloader = get_train_and_test_dataloader(sample_size)
+    trainloader, testloader = get_train_and_test_dataloader()
 
     # Main Training Unit
     for hidden_unit in hidden_units:
