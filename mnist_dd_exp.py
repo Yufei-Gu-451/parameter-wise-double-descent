@@ -10,7 +10,7 @@ import numpy as np
 
 # Training Settings
 weight_reuse = True
-hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 110, 130, 150, 200, 400, 600, 800, 1000]
+hidden_units = [1, 3, 5, 10, 15, 20, 25, 27, 29, 30, 31, 33]
 n_epochs = 6000
 momentum = 0.95
 learning_rate = 0.01
