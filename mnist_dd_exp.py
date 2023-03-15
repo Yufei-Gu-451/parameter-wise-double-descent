@@ -9,7 +9,7 @@ import numpy as np
 #------------------------------------------------------------------------------------------
 
 # Training Settings
-weight_reuse = False
+weight_reuse = True
 hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 110, 130, 150, 200, 400, 600, 800, 1000]
 n_epochs = 6000
 momentum = 0.95
@@ -84,9 +84,13 @@ def get_model(hidden_unit):
     if hidden_unit == 1:
         torch.nn.init.xavier_uniform_(model.features[1].weight, gain=1.0)
         torch.nn.init.xavier_uniform_(model.classifier.weight, gain=1.0)
+    elif hidden_unit > 30:
+        torch.nn.init.normal_(model.features[1].weight, mean=0.0, std=0.1)
+        torch.nn.init.normal_(model.classifier.weight, mean=0.0, std=0.1)
     else:
         torch.nn.init.normal_(model.features[1].weight, mean=0.0, std=0.1)
         torch.nn.init.normal_(model.classifier.weight, mean=0.0, std=0.1)
+
         if weight_reuse:
             print('Use previous checkpoints to initialize the weights:')
             i = 1 # load the closest previous model for weight reuse
@@ -168,7 +172,7 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
     while epoch < n_epochs:
         # Perform weight decay before the interpolation threshold
         # LR decay by lr_decay_rate percent after every `500` epochs
-        if epoch > 1 and epoch % 500 == 1:
+        if hidden_unit < 30 and epoch > 1 and epoch % 500 == 1:
             optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] * lr_decay_rate
 
         # Train the model
@@ -179,7 +183,7 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
         print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f ; LR : %.3f" 
                   % (epoch, train_loss, train_acc, optimizer.param_groups[0]['lr']))
 
-        if hidden_unit < 50 and train_acc == 1:
+        if hidden_unit < 30 and train_acc == 1:
             break
 
     # Evaluate the model
