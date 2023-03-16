@@ -9,7 +9,7 @@ import numpy as np
 #------------------------------------------------------------------------------------------
 
 # Training Settings
-weight_reuse = True
+weight_reuse = False
 lr_decay = False
 hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200, 400, 700, 1000]
 n_epochs = 6000
@@ -85,9 +85,9 @@ def get_model(hidden_unit):
     if hidden_unit == 1:
         torch.nn.init.xavier_uniform_(model.features[1].weight, gain=1.0)
         torch.nn.init.xavier_uniform_(model.classifier.weight, gain=1.0)
-    elif hidden_unit > 30:
-        torch.nn.init.normal_(model.features[1].weight, mean=0.0, std=0.1)
-        torch.nn.init.normal_(model.classifier.weight, mean=0.0, std=0.1)
+    #elif hidden_unit > 30:
+    #    torch.nn.init.normal_(model.features[1].weight, mean=0.0, std=0.1)
+    #    torch.nn.init.normal_(model.classifier.weight, mean=0.0, std=0.1)
     else:
         torch.nn.init.normal_(model.features[1].weight, mean=0.0, std=0.1)
         torch.nn.init.normal_(model.classifier.weight, mean=0.0, std=0.1)
