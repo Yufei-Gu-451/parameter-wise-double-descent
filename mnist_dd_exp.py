@@ -19,7 +19,7 @@ lr_decay_rate = 0.9
 sample_size = 4000
 
 if weight_reuse:
-    directory = "assets/mnist/weight-reuse-case/epoch=%d" % n_epochs
+    directory = "assets/mnist/weight-reuse-case/epoch=%d-2" % n_epochs
 else:
     directory = "assets/mnist/standard-case/epoch=%d-2" % n_epochs
 
