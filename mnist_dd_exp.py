@@ -10,7 +10,8 @@ import numpy as np
 
 # Training Settings
 weight_reuse = True
-hidden_units = [1, 3, 5, 10, 15, 20, 25, 27, 29, 30, 31, 33]
+lr_decay = False
+hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200, 400, 700, 1000]
 n_epochs = 6000
 momentum = 0.95
 learning_rate = 0.01
@@ -20,7 +21,7 @@ sample_size = 4000
 if weight_reuse:
     directory = "assets/mnist/weight-reuse-case/epoch=%d" % n_epochs
 else:
-    directory = "assets/mnist/standard-case/epoch=%d" % n_epochs
+    directory = "assets/mnist/standard-case/epoch=%d-2" % n_epochs
 
 output_file = os.path.join(directory, "epoch=%d.txt" % n_epochs)
 checkpoint_path = os.path.join(directory, "ckpt")
@@ -172,7 +173,7 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
     while epoch < n_epochs:
         # Perform weight decay before the interpolation threshold
         # LR decay by lr_decay_rate percent after every `500` epochs
-        if hidden_unit < 30 and epoch > 1 and epoch % 500 == 1:
+        if epoch > 1 and epoch % 500 == 1 and lr_decay:
             optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] * lr_decay_rate
 
         # Train the model
