@@ -4,6 +4,7 @@ import keras.datasets as kerasDatasets
 from keras.datasets import cifar10
 from keras.datasets import cifar100
 from keras.datasets import mnist
+from keras.datasets import fashion_mnist
 
 
 # All datasets return value are shuffled np array, col is feature size (dimension), row number is sample size.
@@ -16,7 +17,11 @@ def linear_regression_with_gaussian(sample_size=100, feautre_size=5, used_featur
 # real world datasets, can be added with any type noise later
 def load_CIFAR10():
     (x_train, y_train), (x_test, y_test) = kerasDatasets.cifar10.load_data()
+    
     X = np.concatenate((x_train, x_test), axis=0)
+    
+    print(X.shape)
+    
     X = X.reshape((X.shape[0], X.shape[1]*X.shape[2]))
     y = np.concatenate((y_train, y_test), axis=0)
     return X, y
@@ -35,6 +40,13 @@ def load_MNIST():
     y = np.concatenate((y_train, y_test), axis=0)
     return X, y
 
+def load_Fashion_MNIST():
+    (x_train, y_train), (x_test, y_test) = kerasDatasets.fashion_mnist.load_data()
+    X = np.concatenate((x_train, x_test), axis=0)
+    X = X.reshape((X.shape[0], X.shape[1]*X.shape[2]))
+    y = np.concatenate((y_train, y_test), axis=0)
+    return X, y
+
 def load_boston():
     X = skdataset.load_boston()
     return X.data, X.target
@@ -45,9 +57,9 @@ def load_digits():
     
 
 if __name__ == "__main__":
-    X, y = load_digits()
-    print(X.shape)
-    print(y.shape)
+    # X, y = load_digits()
+    # print(X.shape)
+    # print(y.shape)
     
     # X, y = load_boston()
     # print(X.shape)
@@ -57,9 +69,9 @@ if __name__ == "__main__":
     # print(X.shape)
     # print(y.shape)
     
-    # X, y = load_CIFAR10()
-    # print(X.shape)
-    # print(y.shape)
+    X, y = load_CIFAR10()
+    print(X.shape)
+    print(y.shape)
     
     # X, y = load_CIFAR100()
     # print(X.shape)
