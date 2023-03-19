@@ -16,27 +16,33 @@ def linear_regression_with_gaussian(sample_size=100, feautre_size=5, used_featur
     return X, y
 
 # real world datasets, can be added with any type noise later
-def load_CIFAR10():
+def load_CIFAR10(indices):
     (x_train, y_train), (x_test, y_test) = kerasDatasets.cifar10.load_data()
     X = np.concatenate((x_train, x_test), axis=0)
-    
-    data = np.ones((60000,1024))
-    for i in range(60000):
-        data[i] = np.array(Image.fromarray(X[i]).convert("L")).reshape(1024)
-    
     y = np.concatenate((y_train, y_test), axis=0)
-    return data, y
+    
+    data = []
+    label = []
+    for i in range(60000):
+        if y[i] in indices:
+            data.append(np.array(Image.fromarray(X[i]).convert("L")).reshape(1024))
+            label.append(y[i])
+    
+    return np.asarray(data), np.asarray(label)
 
-def load_CIFAR100():
+def load_CIFAR100(indices):
     (x_train, y_train), (x_test, y_test) = kerasDatasets.cifar100.load_data()
     X = np.concatenate((x_train, x_test), axis=0)
-    
-    data = np.ones((60000,1024))
-    for i in range(60000):
-        data[i] = np.array(Image.fromarray(X[i]).convert("L")).reshape(1024)
-    
     y = np.concatenate((y_train, y_test), axis=0)
-    return data, y
+    
+    data = []
+    label = []
+    for i in range(60000):
+        if y[i] in indices:
+            data.append(np.array(Image.fromarray(X[i]).convert("L")).reshape(1024))
+            label.append(y[i])
+    
+    return np.asarray(data), np.asarray(label)
 
 def load_MNIST():
     (x_train, y_train), (x_test, y_test) = kerasDatasets.mnist.load_data()
@@ -74,7 +80,9 @@ if __name__ == "__main__":
     # print(X.shape)
     # print(y.shape)
     
-    X, y = load_CIFAR100()
+    indices = [0, 1]
+    
+    X, y = load_CIFAR100(indices)
     print(X.shape)
     print(y.shape)
     
