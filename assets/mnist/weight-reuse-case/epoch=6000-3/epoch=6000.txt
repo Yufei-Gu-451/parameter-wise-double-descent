@@ -17,9 +17,3 @@ Hidden Neurons : 70 ; Parameters : 55660 ; Train Loss : 0.001070 ; Train Acc : 0
 Hidden Neurons : 80 ; Parameters : 63610 ; Train Loss : 0.000945 ; Train Acc : 0.993 ; Test Loss : 0.101211 ; Test Acc : 0.726
 Hidden Neurons : 90 ; Parameters : 71560 ; Train Loss : 0.000710 ; Train Acc : 0.994 ; Test Loss : 0.103969 ; Test Acc : 0.718
 Hidden Neurons : 100 ; Parameters : 79510 ; Train Loss : 0.000567 ; Train Acc : 0.996 ; Test Loss : 0.105885 ; Test Acc : 0.721
-Hidden Neurons : 110 ; Parameters : 87460 ; Train Loss : 0.000411 ; Train Acc : 0.997 ; Test Loss : 0.108527 ; Test Acc : 0.720
-Hidden Neurons : 130 ; Parameters : 103360 ; Train Loss : 0.000374 ; Train Acc : 0.997 ; Test Loss : 0.109825 ; Test Acc : 0.719
-Hidden Neurons : 150 ; Parameters : 119260 ; Train Loss : 0.000292 ; Train Acc : 0.999 ; Test Loss : 0.111510 ; Test Acc : 0.720
-Hidden Neurons : 170 ; Parameters : 135160 ; Train Loss : 0.000140 ; Train Acc : 0.999 ; Test Loss : 0.112263 ; Test Acc : 0.734
-Hidden Neurons : 200 ; Parameters : 159010 ; Train Loss : 0.000101 ; Train Acc : 1.000 ; Test Loss : 0.113560 ; Test Acc : 0.717
-Hidden Neurons : 250 ; Parameters : 198760 ; Train Loss : 0.000066 ; Train Acc : 1.000 ; Test Loss : 0.114388 ; Test Acc : 0.715
