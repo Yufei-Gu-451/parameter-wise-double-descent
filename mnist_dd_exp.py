@@ -12,14 +12,13 @@ import numpy as np
 # Training Settings
 weight_reuse = False
 lr_decay = False
-hidden_units = [25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200]
+hidden_units = [20, 1, 5, 10, 15, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200]
 n_epochs = 1000
 momentum = 0.95
 learning_rate = 0.01
 lr_decay_rate = 0.9
 sample_size = 4000
-noise_ratio = 0.2
-
+label_noise_ratio = 0.2
 
 if weight_reuse:
     directory = "assets/mnist/weight-reuse-case/epoch=%d" % n_epochs
@@ -38,52 +37,12 @@ if not os.path.isdir(checkpoint_path):
 #------------------------------------------------------------------------------------------
 
 
-import copy
-import random
-
-#Cite from https://www.paepper.com/blog/posts/metalearning-from-noisy-labels/
-def create_noisy_dataset(original, extract_clean_per_class=50, noise_ratio=noise_ratio):
-        num_classes = len(original.classes)
-        targets = np.array(original.targets)
-        noisy_targets = noisy_data = None
-
-        for cls in range(num_classes):
-            class_mask = targets == cls
-            new_noisy_targets = targets[class_mask][extract_clean_per_class:]
-
-            num_noisy = int(noise_ratio * new_noisy_targets.shape[0])
-            random_noise = np.random.randint(0, num_classes, num_noisy)
-
-            other_classes = [i for i in range(num_classes) if i is not cls]
-            random_noise[random_noise == cls] = random.choice(other_classes)
-
-            new_noisy_targets[:num_noisy] = random_noise
-            new_noisy_data = original.data[class_mask][extract_clean_per_class:]
-
-            if noisy_targets is None:
-                noisy_targets = new_noisy_targets
-                noisy_data = new_noisy_data
-            else:
-                noisy_targets = np.concatenate([noisy_targets, new_noisy_targets])
-                noisy_data = torch.cat([noisy_data, new_noisy_data])
-
-        noisy = copy.deepcopy(original)
-        noisy.data = noisy_data
-        noisy.targets = noisy_targets
-
-        return noisy
-
-
-#------------------------------------------------------------------------------------------
-
-
 from torch.utils.data import DataLoader
 from prefetch_generator import BackgroundGenerator
 
 class DataLoaderX(DataLoader):
     def __iter__(self):
         return BackgroundGenerator(super().__iter__())
-
 
 # Return the trainloader and testloader of MINST
 def get_train_and_test_dataloader():
@@ -95,15 +54,33 @@ def get_train_and_test_dataloader():
         transforms.ToTensor(),
     ])
 
-    trainset = datasets.MNIST(root='./data', train=True, download=True, transform = transform_train)
+    trainset = datasets.MNIST(root='./data', train=True, download=True, transform=transform_train)
 
-    trainset_sub = torch.utils.data.Subset(trainset, indices = np.arange(4000))
+    if label_noise_ratio > 0:
+        label_noise_transform = transforms.Lambda(lambda y: torch.tensor(np.random.randint(0, 10)))
+        num_samples = len(trainset)
+        num_noisy_samples = int(label_noise_ratio * num_samples)
 
-    trainloader = DataLoaderX(trainset_sub, batch_size=64, shuffle=True, num_workers=4, pin_memory=False)
+        noisy_indices = np.random.choice(num_samples, num_noisy_samples, replace=False)
+        for idx in noisy_indices:
+            trainset.targets[idx] = label_noise_transform(trainset.targets[idx])
 
-    testset = datasets.MNIST(root='./data', train=False, download=True, transform = transform_test)
+    trainset = torch.utils.data.Subset(trainset, indices=np.arange(sample_size))
+    trainloader = DataLoaderX(trainset, batch_size=64, shuffle=True, num_workers=0, pin_memory=False)
 
-    testloader = DataLoaderX(testset, batch_size=64, shuffle=False, num_workers=4, pin_memory=False)
+    for images, targets in trainloader:
+        for i in range(18):
+            plt.subplot(3, 6, i + 1)
+            plt.imshow(images[i][0], cmap='gray')
+        plt.savefig('Label Noise Data.png')
+        print(targets[:6])
+        print(targets[6:12])
+        print(targets[12:18])
+        break
+
+    testset = datasets.MNIST(root='./data', train=False, download=True, transform=transform_test)
+
+    testloader = DataLoaderX(testset, batch_size=64, shuffle=False, num_workers=0, pin_memory=False)
 
     print('Load MINST dataset success;')
     return trainloader, testloader
