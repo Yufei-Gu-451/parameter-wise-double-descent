@@ -12,19 +12,19 @@ import numpy as np
 # Training Settings
 weight_reuse = False
 lr_decay = False
-#hidden_units = [1, 50, 100]
-hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200, 400, 700, 1000]
-n_epochs = 4000
+hidden_units = [25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200]
+n_epochs = 1000
 momentum = 0.95
 learning_rate = 0.01
 lr_decay_rate = 0.9
 sample_size = 4000
+noise_ratio = 0.2
 
 
 if weight_reuse:
     directory = "assets/mnist/weight-reuse-case/epoch=%d" % n_epochs
 else:
-    directory = "assets/mnist/standard-case/epoch=%d" % n_epochs
+    directory = "assets/mnist/standard-case/epoch=%d-noise" % n_epochs
 
 output_file = os.path.join(directory, "epoch=%d.txt" % n_epochs)
 checkpoint_path = os.path.join(directory, "ckpt")
@@ -33,6 +33,45 @@ if not os.path.isdir(directory):
     os.mkdir(directory)
 if not os.path.isdir(checkpoint_path):
     os.mkdir(checkpoint_path)
+
+
+#------------------------------------------------------------------------------------------
+
+
+import copy
+import random
+
+#Cite from https://www.paepper.com/blog/posts/metalearning-from-noisy-labels/
+def create_noisy_dataset(original, extract_clean_per_class=50, noise_ratio=noise_ratio):
+        num_classes = len(original.classes)
+        targets = np.array(original.targets)
+        noisy_targets = noisy_data = None
+
+        for cls in range(num_classes):
+            class_mask = targets == cls
+            new_noisy_targets = targets[class_mask][extract_clean_per_class:]
+
+            num_noisy = int(noise_ratio * new_noisy_targets.shape[0])
+            random_noise = np.random.randint(0, num_classes, num_noisy)
+
+            other_classes = [i for i in range(num_classes) if i is not cls]
+            random_noise[random_noise == cls] = random.choice(other_classes)
+
+            new_noisy_targets[:num_noisy] = random_noise
+            new_noisy_data = original.data[class_mask][extract_clean_per_class:]
+
+            if noisy_targets is None:
+                noisy_targets = new_noisy_targets
+                noisy_data = new_noisy_data
+            else:
+                noisy_targets = np.concatenate([noisy_targets, new_noisy_targets])
+                noisy_data = torch.cat([noisy_data, new_noisy_data])
+
+        noisy = copy.deepcopy(original)
+        noisy.data = noisy_data
+        noisy.targets = noisy_targets
+
+        return noisy
 
 
 #------------------------------------------------------------------------------------------
@@ -81,6 +120,7 @@ class simple_FC(nn.Module):
             nn.Linear(784, n_hidden),
             nn.ReLU()
         )
+        self.dropout = nn.Dropout(0.6)
         self.classifier = nn.Linear(n_hidden, 10)
 
     def forward(self, x):
@@ -183,10 +223,10 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
     train_loss, train_acc, epoch = 0.0, 0.0, 0
 
     # Stops the training within the pre-set epoch size or when the model fits the training set (99%)
-    while epoch < min(n_epochs, hidden_unit * 20):
+    while epoch < n_epochs:
         # Perform weight decay before the interpolation threshold
         # LR decay by lr_decay_rate percent after every `500` epochs
-        if lr_decay and epoch > 1 and epoch % 500 == 1:
+        if lr_decay and epoch > 1 and epoch % 250 == 1:
             optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] * lr_decay_rate
 
         # Train the model
@@ -196,7 +236,6 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
 
         # Print the status of current training and testing outcome
         print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f" % (epoch, train_loss, train_acc))
-
 
     # Evaluate the model
     test_loss, test_acc = test(testloader, model)
