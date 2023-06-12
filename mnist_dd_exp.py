@@ -21,9 +21,9 @@ sample_size = 4000
 label_noise_ratio = 0.0
 
 if weight_reuse:
-    directory = "assets/mnist/weight-reuse-case/epoch=%d" % n_epochs
+    directory = "assets/MNIST/weight-reuse-case/epoch=%d" % n_epochs
 else:
-    directory = "assets/mnist/standard-case/epoch=%d-noise-0-lr-decay" % n_epochs
+    directory = "assets/MNIST/standard-case/epoch=%d-noise-0-lr-decay" % n_epochs
 
 output_file = os.path.join(directory, "epoch=%d.txt" % n_epochs)
 checkpoint_path = os.path.join(directory, "ckpt")

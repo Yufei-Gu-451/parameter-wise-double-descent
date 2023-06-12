@@ -15,13 +15,13 @@ from prefetch_generator import BackgroundGenerator
 lr_decay = True
 CNN_widths = [1, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-n_epochs = 1000
+n_epochs = 100
 learning_rate = 0.01
-label_noise_ratio = 0.2
+label_noise_ratio = 0.0
 
-directory = "assets/cifar-10/standard-case/epoch=%d-noise=%d" % (n_epochs, label_noise_ratio)
+directory = "assets/CIFAR-10/std/epoch=%d-noise=%d" % (n_epochs, label_noise_ratio)
 
-output_file = os.path.join(directory, "epoch=%d.txt-noise=%d" % (n_epochs, label_noise_ratio))
+output_file = os.path.join(directory, "epoch=%d-noise=%d.txt" % (n_epochs, label_noise_ratio))
 checkpoint_path = os.path.join(directory, "ckpt")
 
 if not os.path.isdir(directory):
@@ -45,7 +45,7 @@ def get_train_and_test_dataloader():
          transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
     )
 
-    trainset = datasets.CIFAR10(root='./data', train=True, download=False, transform=transform)
+    trainset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
 
     if label_noise_ratio > 0:
         label_noise_transform = transforms.Lambda(lambda y: torch.tensor(np.random.randint(0, 10)))
@@ -56,11 +56,12 @@ def get_train_and_test_dataloader():
         for idx in noisy_indices:
             trainset.targets[idx] = label_noise_transform(trainset.targets[idx])
 
-    trainloader = DataLoaderX(trainset, batch_size=64, shuffle=True, num_workers=0, pin_memory=False)
+    trainloader = DataLoaderX(trainset, batch_size=128, shuffle=True, num_workers=0, pin_memory=False)
 
-    testset = datasets.CIFAR10(root='./data', train=False, download=False, transform=transform)
 
-    testloader = DataLoaderX(testset, batch_size=64, shuffle=False, num_workers=0, pin_memory=False)
+    testset = datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+
+    testloader = DataLoaderX(testset, batch_size=128, shuffle=False, num_workers=0, pin_memory=False)
 
     print('Load CIFAR-10 dataset success;')
 
@@ -76,23 +77,23 @@ class FiveLayerCNN(nn.Module):
         self.conv1 = nn.Conv2d(3, k, kernel_size=3, stride=1, padding=1)
         self.bn1 = nn.BatchNorm2d(k)
         self.relu1 = nn.ReLU()
-        self.pool1 = nn.MaxPool2d(1, 2)
 
         self.conv2 = nn.Conv2d(k, 2 * k, kernel_size=3, stride=1, padding=1)
         self.bn2 = nn.BatchNorm2d(2 * k)
         self.relu2 = nn.ReLU()
-        self.pool2 = nn.MaxPool2d(2)
+        self.pool1 = nn.MaxPool2d(1)
 
         self.conv3 = nn.Conv2d(2 * k, 4 * k, kernel_size=3, stride=1, padding=1)
         self.bn3 = nn.BatchNorm2d(4 * k)
         self.relu3 = nn.ReLU()
-        self.pool3 = nn.MaxPool2d(2)
+        self.pool2 = nn.MaxPool2d(2)
 
         self.conv4 = nn.Conv2d(4 * k, 8 * k, kernel_size=3, stride=1, padding=1)
         self.bn4 = nn.BatchNorm2d(8 * k)
         self.relu4 = nn.ReLU()
-        self.pool4 = nn.MaxPool2d(8)
+        self.pool3 = nn.MaxPool2d(2)
 
+        self.pool4 = nn.MaxPool2d(8)
         self.fc = nn.Linear(8 * k, 10)
 
     def forward(self, x):
@@ -127,16 +128,17 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
             optimizer.step()
 
             cumulative_loss += loss.item()
-            _, predicted = outputs.max(1)
+            _, predicted = torch.max(outputs.data, 1)
             total += targets.size(0)
-            correct += predicted.eq(targets.argmax(1)).sum().item()
+            correct += (predicted == targets).sum().item()
 
             total_train_step = total_train_step + 1
             if total_train_step > 0 and total_train_step % 512 == 0:
-                optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] / \
-                                                  pow(1 + total_train_step // 512, 0.5)
-                print("Learning Rate Decay: %.f", optimizer.param_groups[0]['lr'])
+                optimizer.param_groups[0]['lr'] = learning_rate / pow(1 + total_train_step // 512, 0.5)
+                print("Learning Rate Decay: ", optimizer.param_groups[0]['lr'])
 
+        train_loss = cumulative_loss / len(testloader)
+        train_acc = correct / total
         print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f" % (i, train_loss, train_acc))
 
     model.eval()
@@ -152,9 +154,9 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
             loss = criterion(outputs, targets)
 
             cumulative_loss += loss.item()
-            _, predicted = outputs.max(1)
+            _, predicted = torch.max(outputs.data, 1)
             total += targets.size(0)
-            correct += predicted.eq(targets.argmax(1)).sum().item()
+            correct += (predicted == targets).sum().item()
 
     test_loss = cumulative_loss / len(testloader)
     test_acc = correct / total

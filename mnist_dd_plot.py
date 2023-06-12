@@ -5,7 +5,7 @@ import math
 
 epochs = 4000
 
-directory = 'assets/mnist/standard-case/epoch=%d' % epochs
+directory = 'assets/MNIST/standard-case/epoch=%d' % epochs
 plots_directory = os.path.join(directory, 'plots')
 input_file = os.path.join(directory, 'epoch=%d.txt' % epochs)
 
