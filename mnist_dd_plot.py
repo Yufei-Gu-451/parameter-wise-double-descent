@@ -3,18 +3,14 @@ import os
 import re
 import math
 
-epochs = 1000
-weight_reuse = False
+epochs = 4000
 
-if weight_reuse:
-    directory = 'assets/mnist/weight-reuse-case/epoch=%d-3/plots' % epochs
-    input_file = 'assets/mnist/weight-reuse-case/epoch=%d-3/epoch=%d.txt' % (epochs, epochs)
-else:
-    directory = 'assets/mnist/standard-case/epoch=%d-dropout/plots' % epochs
-    input_file = 'assets/mnist/standard-case/epoch=%d-dropout/epoch=%d.txt' % (epochs, epochs)
+directory = 'assets/mnist/standard-case/epoch=%d' % epochs
+plots_directory = os.path.join(directory, 'plots')
+input_file = os.path.join(directory, 'epoch=%d.txt' % epochs)
 
-if not os.path.isdir(directory):
-    os.mkdir(directory)
+if not os.path.isdir(plots_directory):
+    os.mkdir(plots_directory)
 
 if __name__ == '__main__':
     array = []
@@ -39,7 +35,6 @@ if __name__ == '__main__':
     #    parameters.append(int( (785 * n + (n + 1) * 10) / 1000) )
 
 
-
     scale_function = (lambda x: x**(1/3), lambda x: x**3)
 
     plt.figure(figsize=(5, 4))
@@ -47,26 +42,28 @@ if __name__ == '__main__':
     ax.set_xscale('function', functions=scale_function)
     plt.plot(hidden_units, test_losses, marker='o', label='test')
     plt.plot(hidden_units, train_losses, marker='o', label='train')
-    plt.xticks([1, 8, 20, 50, 100, 200])
+    plt.xticks([1, 6, 20, 50, 100, 200])
+    ax.vlines([50], -0.005, 0.9, linestyles='dashed', color='black')
+    plt.ylim((-0.005, 0.09))
     plt.xlabel('Number of hidden units (H)')
     plt.ylabel('Squared loss')
     plt.title('MNIST (n = 4×10ˆ3,d = 784,K = 10)')
-    plt.savefig(os.path.join(directory, 'MSE-Neurons.png'))
+    plt.savefig(os.path.join(plots_directory, 'MSE-Neurons.png'))
 
     plt.figure(figsize=(6, 4.5))
     ax = plt.axes()
     #ax.set_xscale('function', functions=scale_function)
-    ax.vlines([40], -0.003, 0.155, linestyles='dashed', color='black')
     plt.plot(parameters, test_losses, marker='o', label='test')
     plt.plot(parameters, train_losses, marker='o', label='train')
     #plt.xticks([5, 10, 40, 100])
     plt.yticks([0.00, 0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.14])
     #plt.xlim((10, 300))
-    plt.ylim((-0.003, 0.155))
+    ax.vlines([40], -0.003, 0.09, linestyles='dashed', color='black')
+    plt.ylim((-0.003, 0.09))
     plt.xlabel('Number of parameters/weights (×10ˆ3)')
     plt.ylabel('Squared loss')
     plt.title('MNIST (n = 4×10ˆ3,d = 784,K = 10)')
-    plt.savefig(os.path.join(directory, 'MSE-Parameters.png'))
+    plt.savefig(os.path.join(plots_directory, 'MSE-Parameters.png'))
 
     plt.figure(figsize=(5, 4))
     ax = plt.axes()
@@ -77,7 +74,7 @@ if __name__ == '__main__':
     plt.xlabel('Number of hidden units (H)')
     plt.ylabel('Accuracy')
     plt.title('MNIST (n = 4×10ˆ3,d = 784,K = 10)')
-    plt.savefig(os.path.join(directory, 'Accuracy-Neurons.png'))
+    plt.savefig(os.path.join(plots_directory, 'Accuracy-Neurons.png'))
 
     plt.figure(figsize=(5, 4))
     ax = plt.axes()
@@ -88,4 +85,4 @@ if __name__ == '__main__':
     plt.xlabel('Number of parameters/weights (×10ˆ3)')
     plt.ylabel('Accuracy')
     plt.title('MNIST (n = 4×10ˆ3,d = 784,K = 10)')
-    plt.savefig(os.path.join(directory, 'Accuracy-Parameters.png'))
+    plt.savefig(os.path.join(plots_directory, 'Accuracy-Parameters.png'))

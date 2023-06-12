@@ -11,19 +11,19 @@ import numpy as np
 
 # Training Settings
 weight_reuse = False
-lr_decay = False
-hidden_units = [20, 1, 5, 10, 15, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200]
+lr_decay = True
+hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200]
 n_epochs = 1000
 momentum = 0.95
 learning_rate = 0.01
 lr_decay_rate = 0.9
 sample_size = 4000
-label_noise_ratio = 0.2
+label_noise_ratio = 0.0
 
 if weight_reuse:
     directory = "assets/mnist/weight-reuse-case/epoch=%d" % n_epochs
 else:
-    directory = "assets/mnist/standard-case/epoch=%d-noise" % n_epochs
+    directory = "assets/mnist/standard-case/epoch=%d-noise-0-lr-decay" % n_epochs
 
 output_file = os.path.join(directory, "epoch=%d.txt" % n_epochs)
 checkpoint_path = os.path.join(directory, "ckpt")
@@ -68,6 +68,7 @@ def get_train_and_test_dataloader():
     trainset = torch.utils.data.Subset(trainset, indices=np.arange(sample_size))
     trainloader = DataLoaderX(trainset, batch_size=64, shuffle=True, num_workers=0, pin_memory=False)
 
+    '''
     for images, targets in trainloader:
         for i in range(18):
             plt.subplot(3, 6, i + 1)
@@ -77,6 +78,7 @@ def get_train_and_test_dataloader():
         print(targets[6:12])
         print(targets[12:18])
         break
+    '''
 
     testset = datasets.MNIST(root='./data', train=False, download=True, transform=transform_test)
 
@@ -97,7 +99,7 @@ class simple_FC(nn.Module):
             nn.Linear(784, n_hidden),
             nn.ReLU()
         )
-        self.dropout = nn.Dropout(0.6)
+        #self.dropout = nn.Dropout(0.6)
         self.classifier = nn.Linear(n_hidden, 10)
 
     def forward(self, x):
@@ -156,9 +158,8 @@ def train(trainloader, model, optimizer, criterion):
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
-        # Calculate the Testing Loss
+
         cumulative_loss += loss.item()
-        # Calculate the Training Accuracy
         _, predicted = outputs.max(1)
         total += labels.size(0)
         correct += predicted.eq(labels.argmax(1)).sum().item()
@@ -182,9 +183,8 @@ def test(testloader, model):
             labels = labels.to(device)
             outputs = model(inputs)
             loss = criterion(outputs, labels)
-            # Calculate the Testing Loss
+
             cumulative_loss += loss.item()
-            # Calculate the Testing Accuracy
             _, predicted = outputs.max(1)
             total += labels.size(0)
             correct += predicted.eq(labels.argmax(1)).sum().item()
@@ -200,16 +200,14 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
     train_loss, train_acc, epoch = 0.0, 0.0, 0
 
     # Stops the training within the pre-set epoch size or when the model fits the training set (99%)
-    while epoch < n_epochs:
+    for epoch in range(n_epochs):
         # Perform weight decay before the interpolation threshold
         # LR decay by lr_decay_rate percent after every `500` epochs
-        if lr_decay and epoch > 1 and epoch % 250 == 1:
+        if lr_decay and epoch > 1 and epoch % 200 == 1:
             optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] * lr_decay_rate
 
         # Train the model
         model, train_loss, train_acc = train(trainloader, model, optimizer, criterion)
-
-        epoch += 1
 
         # Print the status of current training and testing outcome
         print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f" % (epoch, train_loss, train_acc))
@@ -248,7 +246,9 @@ if __name__ == '__main__':
 
         # Set the optimizer and criterion 
         optimizer = torch.optim.SGD(model.parameters(), momentum=momentum, lr=learning_rate)
+        #optimizer = optimizer.to(device)
         criterion = torch.nn.MSELoss()
+        #criterion = criterion.to(device)
 
         # Train and evalute the model
         train_loss, train_acc, test_loss, test_acc = train_and_evaluate_model(trainloader, testloader, \

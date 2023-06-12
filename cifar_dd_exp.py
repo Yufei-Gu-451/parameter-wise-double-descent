@@ -2,31 +2,26 @@ import torchvision.datasets as datasets
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
-import matplotlib.pyplot as plt
-import os
 import numpy as np
+import os
 
-#------------------------------------------------------------------------------------------
+from torch.utils.data import DataLoader
+from prefetch_generator import BackgroundGenerator
+
+# ------------------------------------------------------------------------------------------
 
 
 # Training Settings
-weight_reuse = False
-lr_decay = False
-#hidden_units = [1, 50, 100]
+lr_decay = True
 CNN_widths = [1, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 n_epochs = 1000
-momentum = 0.95
 learning_rate = 0.01
-lr_decay_rate = 0.9
-sample_size = 4000
+label_noise_ratio = 0.2
 
-if weight_reuse:
-    directory = "assets/cifar/weight-reuse-case/epoch=%d" % n_epochs
-else:
-    directory = "assets/cifar/standard-case/epoch=%d" % n_epochs
+directory = "assets/cifar-10/standard-case/epoch=%d-noise=%d" % (n_epochs, label_noise_ratio)
 
-output_file = os.path.join(directory, "epoch=%d.txt" % n_epochs)
+output_file = os.path.join(directory, "epoch=%d.txt-noise=%d" % (n_epochs, label_noise_ratio))
 checkpoint_path = os.path.join(directory, "ckpt")
 
 if not os.path.isdir(directory):
@@ -35,36 +30,44 @@ if not os.path.isdir(checkpoint_path):
     os.mkdir(checkpoint_path)
 
 
-#------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------
 
-
-from torch.utils.data import DataLoader
-from prefetch_generator import BackgroundGenerator
 
 class DataLoaderX(DataLoader):
     def __iter__(self):
         return BackgroundGenerator(super().__iter__())
 
+
 # Return the trainloader and testloader of MINST
 def get_train_and_test_dataloader():
     transform = transforms.Compose(
         [transforms.ToTensor(),
-         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+    )
 
     trainset = datasets.CIFAR10(root='./data', train=True, download=False, transform=transform)
 
-    trainloader = DataLoaderX(trainset, batch_size=64, shuffle=True, num_workers=8, pin_memory=False)
+    if label_noise_ratio > 0:
+        label_noise_transform = transforms.Lambda(lambda y: torch.tensor(np.random.randint(0, 10)))
+        num_samples = len(trainset)
+        num_noisy_samples = int(label_noise_ratio * num_samples)
+
+        noisy_indices = np.random.choice(num_samples, num_noisy_samples, replace=False)
+        for idx in noisy_indices:
+            trainset.targets[idx] = label_noise_transform(trainset.targets[idx])
+
+    trainloader = DataLoaderX(trainset, batch_size=64, shuffle=True, num_workers=0, pin_memory=False)
 
     testset = datasets.CIFAR10(root='./data', train=False, download=False, transform=transform)
 
-    testloader = DataLoaderX(testset, batch_size=64, shuffle=False, num_workers=8, pin_memory=False)
+    testloader = DataLoaderX(testset, batch_size=64, shuffle=False, num_workers=0, pin_memory=False)
 
     print('Load CIFAR-10 dataset success;')
 
     return trainloader, testloader
 
 
-#------------------------------------------------------------------------------------------\
+# ------------------------------------------------------------------------------------------\
 
 
 class FiveLayerCNN(nn.Module):
@@ -101,23 +104,65 @@ class FiveLayerCNN(nn.Module):
         x = self.fc(x)
         return x
 
-def get_model(hidden_unit):
-    model = FiveLayerCNN(hidden_unit)
-    model = model.to(device)
 
-    print("Model with %d hidden neurons successfully generated;" % hidden_unit)
-
-    return model
+# ------------------------------------------------------------------------------------------
 
 
-#------------------------------------------------------------------------------------------
+def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterion):
+    total_train_step = 0
 
+    for i in range(n_epochs):
+        model.train()
+        cumulative_loss, correct, total = 0.0, 0, 0
 
-def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterion, CNN_width):
+        for data in trainloader:
+            imgs, targets = data
+            imgs = imgs.to(device)
+            targets = targets.to(device)
+
+            outputs = model(imgs)
+            loss = criterion(outputs, targets)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            cumulative_loss += loss.item()
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets.argmax(1)).sum().item()
+
+            total_train_step = total_train_step + 1
+            if total_train_step > 0 and total_train_step % 512 == 0:
+                optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] / \
+                                                  pow(1 + total_train_step // 512, 0.5)
+                print("Learning Rate Decay: %.f", optimizer.param_groups[0]['lr'])
+
+        print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f" % (i, train_loss, train_acc))
+
+    model.eval()
+    cumulative_loss, correct, total = 0.0, 0, 0
+
+    with torch.no_grad():
+        for data in testloader:
+            imgs, targets = data
+            imgs = imgs.to(device)
+            targets = targets.to(device)
+
+            outputs = model(imgs)
+            loss = criterion(outputs, targets)
+
+            cumulative_loss += loss.item()
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets.argmax(1)).sum().item()
+
+    test_loss = cumulative_loss / len(testloader)
+    test_acc = correct / total
+
     return train_loss, train_acc, test_loss, test_acc
 
 
-#------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------
 
 
 if __name__ == '__main__':
@@ -134,17 +179,21 @@ if __name__ == '__main__':
     # Main Training Unit
     for CNN_width in CNN_widths:
         # Generate the model with specific number of hidden_unit
-        model = get_model(CNN_width)
+        model = FiveLayerCNN(CNN_width)
+        model = model.to(device)
+        print("Model with %d hidden neurons successfully generated;" % CNN_width)
+
         parameters = sum(p.numel() for p in model.parameters())
         print('Number of parameters: %d' % sum(p.numel() for p in model.parameters()))
 
         # Set the optimizer and criterion
-        optimizer = torch.optim.SGD(model.parameters(), momentum=momentum, lr=learning_rate)
+        optimizer = torch.optim.SGD(model.parameters(), momentum=0, lr=learning_rate)
         criterion = torch.nn.CrossEntropyLoss()
+        criterion = criterion.to(device)
 
         # Train and evalute the model
-        train_loss, train_acc, test_loss, test_acc = train_and_evaluate_model(trainloader, testloader, \
-                                    model, optimizer, criterion, CNN_width)
+        train_loss, train_acc, test_loss, test_acc = train_and_evaluate_model(trainloader, testloader,
+                                                                              model, optimizer, criterion)
 
         # Print training and evaluation outcome
         print("\nCNN_width : %d ; Parameters : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; "
