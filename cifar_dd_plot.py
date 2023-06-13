@@ -3,7 +3,7 @@ import re
 import os
 
 epochs = 100
-noise = 0.2
+noise = 0.0
 
 directory = 'assets/CIFAR-10/std/epoch=%d-noise=%d' % (epochs, noise * 100)
 plots_directory = os.path.join(directory, 'plots')
