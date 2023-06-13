@@ -13,17 +13,14 @@ import numpy as np
 weight_reuse = False
 lr_decay = True
 hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200]
-n_epochs = 1000
+n_epochs = 4000
 momentum = 0.95
 learning_rate = 0.01
 lr_decay_rate = 0.9
 sample_size = 4000
-label_noise_ratio = 0.0
+label_noise_ratio = 0.2
 
-if weight_reuse:
-    directory = "assets/MNIST/weight-reuse-case/epoch=%d" % n_epochs
-else:
-    directory = "assets/MNIST/standard-case/epoch=%d-noise-0-lr-decay" % n_epochs
+directory = "assets/MNIST/standard-case/epoch=%d-noise-20-lr-decay" % n_epochs
 
 output_file = os.path.join(directory, "epoch=%d.txt" % n_epochs)
 checkpoint_path = os.path.join(directory, "ckpt")
@@ -247,7 +244,7 @@ if __name__ == '__main__':
         # Set the optimizer and criterion 
         optimizer = torch.optim.SGD(model.parameters(), momentum=momentum, lr=learning_rate)
         #optimizer = optimizer.to(device)
-        criterion = torch.nn.MSELoss()
+        criterion = torch.nn.CrossEntropyLoss()
         #criterion = criterion.to(device)
 
         # Train and evalute the model

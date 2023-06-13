@@ -13,15 +13,15 @@ from prefetch_generator import BackgroundGenerator
 
 # Training Settings
 lr_decay = True
-CNN_widths = [1, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
+CNN_widths = [64, 1, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60]
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-n_epochs = 100
-learning_rate = 0.01
-label_noise_ratio = 0.0
+n_epochs = 400
+learning_rate = 0.1
+label_noise_ratio = 0.2
 
-directory = "assets/CIFAR-10/std/epoch=%d-noise=%d" % (n_epochs, label_noise_ratio)
+directory = "assets/CIFAR-10/std/epoch=%d-noise=%d" % (n_epochs, label_noise_ratio * 100)
 
-output_file = os.path.join(directory, "epoch=%d-noise=%d.txt" % (n_epochs, label_noise_ratio))
+output_file = os.path.join(directory, "epoch=%d-noise=%d.txt" % (n_epochs, label_noise_ratio * 100))
 checkpoint_path = os.path.join(directory, "ckpt")
 
 if not os.path.isdir(directory):
@@ -47,54 +47,56 @@ def get_train_and_test_dataloader():
 
     trainset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
 
-    if label_noise_ratio > 0:
-        label_noise_transform = transforms.Lambda(lambda y: torch.tensor(np.random.randint(0, 10)))
-        num_samples = len(trainset)
-        num_noisy_samples = int(label_noise_ratio * num_samples)
-
-        noisy_indices = np.random.choice(num_samples, num_noisy_samples, replace=False)
-        for idx in noisy_indices:
-            trainset.targets[idx] = label_noise_transform(trainset.targets[idx])
-
     trainloader = DataLoaderX(trainset, batch_size=128, shuffle=True, num_workers=0, pin_memory=False)
-
 
     testset = datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
 
-    testloader = DataLoaderX(testset, batch_size=128, shuffle=False, num_workers=0, pin_memory=False)
+    testloader = DataLoaderX(testset, batch_size=1, shuffle=False, num_workers=0, pin_memory=False)
 
-    print('Load CIFAR-10 dataset success;')
+    print('Load CIFAR-10 dataset success;\n')
 
-    return trainloader, testloader
+    return len(trainset), len(testset), trainloader, testloader
+
+def add_label_noise(labels, noise_level):
+    num_samples = labels.size(0)
+    num_corrupt = int(num_samples * noise_level)
+    noise_indices = np.random.choice(num_samples, num_corrupt, replace=False)
+    noisy_labels = labels.clone()
+    noisy_labels[noise_indices] = torch.randint(0, 10, (num_corrupt,), dtype=torch.long)
+    return noisy_labels
 
 
 # ------------------------------------------------------------------------------------------\
 
 
+class Flatten(nn.Module):
+    def forward(self, x): return x.view(x.size(0), x.size(1))
+
 class FiveLayerCNN(nn.Module):
     def __init__(self, k):
         super(FiveLayerCNN, self).__init__()
-        self.conv1 = nn.Conv2d(3, k, kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(3, k, kernel_size=3, stride=1, padding=1, bias=True)
         self.bn1 = nn.BatchNorm2d(k)
         self.relu1 = nn.ReLU()
 
-        self.conv2 = nn.Conv2d(k, 2 * k, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(k, 2 * k, kernel_size=3, stride=1, padding=1, bias=True)
         self.bn2 = nn.BatchNorm2d(2 * k)
         self.relu2 = nn.ReLU()
-        self.pool1 = nn.MaxPool2d(1)
+        self.pool1 = nn.MaxPool2d(2)
 
-        self.conv3 = nn.Conv2d(2 * k, 4 * k, kernel_size=3, stride=1, padding=1)
+        self.conv3 = nn.Conv2d(2 * k, 4 * k, kernel_size=3, stride=1, padding=1, bias=True)
         self.bn3 = nn.BatchNorm2d(4 * k)
         self.relu3 = nn.ReLU()
         self.pool2 = nn.MaxPool2d(2)
 
-        self.conv4 = nn.Conv2d(4 * k, 8 * k, kernel_size=3, stride=1, padding=1)
+        self.conv4 = nn.Conv2d(4 * k, 8 * k, kernel_size=3, stride=1, padding=1, bias=True)
         self.bn4 = nn.BatchNorm2d(8 * k)
         self.relu4 = nn.ReLU()
         self.pool3 = nn.MaxPool2d(2)
 
-        self.pool4 = nn.MaxPool2d(8)
-        self.fc = nn.Linear(8 * k, 10)
+        self.pool4 = nn.MaxPool2d(4)
+        self.flatten = Flatten()
+        self.fc = nn.Linear(8 * k, 10, bias=True)
 
     def forward(self, x):
         x = self.pool1(self.relu1(self.bn1(self.conv1(x))))
@@ -109,7 +111,7 @@ class FiveLayerCNN(nn.Module):
 # ------------------------------------------------------------------------------------------
 
 
-def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterion):
+def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterion, n_train_samples, n_test_samples):
     total_train_step = 0
 
     for i in range(n_epochs):
@@ -117,11 +119,15 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
         cumulative_loss, correct, total = 0.0, 0, 0
 
         for data in trainloader:
-            imgs, targets = data
-            imgs = imgs.to(device)
+            images, targets = data
+
+            if label_noise_ratio > 0:
+                targets = add_label_noise(targets, label_noise_ratio)
+
+            images = images.to(device)
             targets = targets.to(device)
 
-            outputs = model(imgs)
+            outputs = model(images)
             loss = criterion(outputs, targets)
             optimizer.zero_grad()
             loss.backward()
@@ -129,16 +135,16 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
 
             cumulative_loss += loss.item()
             _, predicted = torch.max(outputs.data, 1)
-            total += targets.size(0)
             correct += (predicted == targets).sum().item()
 
-            total_train_step = total_train_step + 1
-            if total_train_step > 0 and total_train_step % 512 == 0:
+            if total_train_step % 512 == 0:
                 optimizer.param_groups[0]['lr'] = learning_rate / pow(1 + total_train_step // 512, 0.5)
-                print("Learning Rate Decay: ", optimizer.param_groups[0]['lr'])
+                print("Learning Rate : ", optimizer.param_groups[0]['lr'])
+            total_train_step = total_train_step + 1
 
-        train_loss = cumulative_loss / len(testloader)
-        train_acc = correct / total
+        train_loss = cumulative_loss / len(trainloader)
+        train_acc = correct / n_train_samples
+
         print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f" % (i, train_loss, train_acc))
 
     model.eval()
@@ -146,11 +152,11 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
 
     with torch.no_grad():
         for data in testloader:
-            imgs, targets = data
-            imgs = imgs.to(device)
+            images, targets = data
+            images = images.to(device)
             targets = targets.to(device)
 
-            outputs = model(imgs)
+            outputs = model(images)
             loss = criterion(outputs, targets)
 
             cumulative_loss += loss.item()
@@ -159,7 +165,7 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
             correct += (predicted == targets).sum().item()
 
     test_loss = cumulative_loss / len(testloader)
-    test_acc = correct / total
+    test_acc = correct / n_test_samples
 
     return train_loss, train_acc, test_loss, test_acc
 
@@ -176,7 +182,7 @@ if __name__ == '__main__':
     torch.backends.cudnn.benchmark = True
 
     # Get the training and testing data of specific sample size
-    trainloader, testloader = get_train_and_test_dataloader()
+    n_train_samples, n_test_samples, trainloader, testloader = get_train_and_test_dataloader()
 
     # Main Training Unit
     for CNN_width in CNN_widths:
@@ -189,13 +195,13 @@ if __name__ == '__main__':
         print('Number of parameters: %d' % sum(p.numel() for p in model.parameters()))
 
         # Set the optimizer and criterion
-        optimizer = torch.optim.SGD(model.parameters(), momentum=0, lr=learning_rate)
+        optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
         criterion = torch.nn.CrossEntropyLoss()
         criterion = criterion.to(device)
 
         # Train and evalute the model
         train_loss, train_acc, test_loss, test_acc = train_and_evaluate_model(trainloader, testloader,
-                                                                              model, optimizer, criterion)
+                                model, optimizer, criterion, n_train_samples, n_test_samples)
 
         # Print training and evaluation outcome
         print("\nCNN_width : %d ; Parameters : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; "
