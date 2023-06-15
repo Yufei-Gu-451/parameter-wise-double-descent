@@ -5,7 +5,7 @@ import math
 
 epochs = 4000
 
-directory = 'assets/MNIST/standard-case/epoch=%d' % epochs
+directory = 'assets/MNIST/standard-case/epoch=%d-noise-20' % epochs
 plots_directory = os.path.join(directory, 'plots')
 input_file = os.path.join(directory, 'epoch=%d.txt' % epochs)
 
@@ -43,8 +43,8 @@ if __name__ == '__main__':
     plt.plot(hidden_units, test_losses, marker='o', label='test')
     plt.plot(hidden_units, train_losses, marker='o', label='train')
     plt.xticks([1, 6, 20, 50, 100, 200])
-    ax.vlines([50], -0.005, 0.9, linestyles='dashed', color='black')
-    plt.ylim((-0.005, 0.09))
+    #ax.vlines([4], -0.01, 2.55, linestyles='dashed', color='black')
+    plt.ylim((-0.1, 2.6))
     plt.xlabel('Number of hidden units (H)')
     plt.ylabel('Squared loss')
     plt.title('MNIST (n = 4×10ˆ3,d = 784,K = 10)')
@@ -59,7 +59,7 @@ if __name__ == '__main__':
     plt.yticks([0.00, 0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.14])
     #plt.xlim((10, 300))
     ax.vlines([40], -0.003, 0.09, linestyles='dashed', color='black')
-    plt.ylim((-0.003, 0.09))
+    #plt.ylim((-0.003, 0.09))
     plt.xlabel('Number of parameters/weights (×10ˆ3)')
     plt.ylabel('Squared loss')
     plt.title('MNIST (n = 4×10ˆ3,d = 784,K = 10)')

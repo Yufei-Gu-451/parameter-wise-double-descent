@@ -12,7 +12,8 @@ import numpy as np
 # Training Settings
 weight_reuse = False
 lr_decay = True
-hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200]
+hidden_units = [400, 600, 800, 1000]
+#hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200]
 n_epochs = 4000
 learning_rate = 0.05
 sample_size = 4000
