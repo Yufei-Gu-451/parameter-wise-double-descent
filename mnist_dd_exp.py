@@ -14,13 +14,11 @@ weight_reuse = False
 lr_decay = True
 hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200]
 n_epochs = 4000
-momentum = 0.95
-learning_rate = 0.01
-lr_decay_rate = 0.9
+learning_rate = 0.05
 sample_size = 4000
 label_noise_ratio = 0.2
 
-directory = "assets/MNIST/standard-case/epoch=%d-noise-20-lr-decay" % n_epochs
+directory = "assets/MNIST/standard-case/epoch=%d-noise-20" % n_epochs
 
 output_file = os.path.join(directory, "epoch=%d.txt" % n_epochs)
 checkpoint_path = os.path.join(directory, "ckpt")
@@ -79,7 +77,7 @@ def get_train_and_test_dataloader():
 
     testset = datasets.MNIST(root='./data', train=False, download=True, transform=transform_test)
 
-    testloader = DataLoaderX(testset, batch_size=64, shuffle=False, num_workers=0, pin_memory=False)
+    testloader = DataLoaderX(testset, batch_size=1, shuffle=False, num_workers=0, pin_memory=False)
 
     print('Load MINST dataset success;')
     return trainloader, testloader
@@ -198,10 +196,9 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
 
     # Stops the training within the pre-set epoch size or when the model fits the training set (99%)
     for epoch in range(n_epochs):
-        # Perform weight decay before the interpolation threshold
-        # LR decay by lr_decay_rate percent after every `500` epochs
-        if lr_decay and epoch > 1 and epoch % 200 == 1:
-            optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] * lr_decay_rate
+        if epoch % 50 == 0:
+            optimizer.param_groups[0]['lr'] = learning_rate / pow(1 + epoch // 50, 0.5)
+            print("Learning Rate : ", optimizer.param_groups[0]['lr'])
 
         # Train the model
         model, train_loss, train_acc = train(trainloader, model, optimizer, criterion)
@@ -242,10 +239,9 @@ if __name__ == '__main__':
         parameters = sum(p.numel() for p in model.parameters())
 
         # Set the optimizer and criterion 
-        optimizer = torch.optim.SGD(model.parameters(), momentum=momentum, lr=learning_rate)
-        #optimizer = optimizer.to(device)
+        optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
         criterion = torch.nn.CrossEntropyLoss()
-        #criterion = criterion.to(device)
+        criterion = criterion.to(device)
 
         # Train and evalute the model
         train_loss, train_acc, test_loss, test_acc = train_and_evaluate_model(trainloader, testloader, \

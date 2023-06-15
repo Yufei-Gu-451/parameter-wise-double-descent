@@ -13,9 +13,8 @@ from prefetch_generator import BackgroundGenerator
 
 # Training Settings
 lr_decay = True
-CNN_widths = [64, 1, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60]
-classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-n_epochs = 400
+CNN_widths = [2, 4, 8, 10, 14]
+n_epochs = 100
 learning_rate = 0.1
 label_noise_ratio = 0.2
 
@@ -37,7 +36,6 @@ class DataLoaderX(DataLoader):
     def __iter__(self):
         return BackgroundGenerator(super().__iter__())
 
-
 # Return the trainloader and testloader of MINST
 def get_train_and_test_dataloader():
     transform = transforms.Compose(
@@ -46,6 +44,16 @@ def get_train_and_test_dataloader():
     )
 
     trainset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+
+    if label_noise_ratio > 0:
+        if label_noise_ratio > 0:
+            label_noise_transform = transforms.Lambda(lambda y: np.random.randint(0, 10))
+            num_samples = len(trainset)
+            num_noisy_samples = int(label_noise_ratio * num_samples)
+
+            noisy_indices = np.random.choice(num_samples, num_noisy_samples, replace=False)
+            for idx in noisy_indices:
+                trainset.targets[idx] = label_noise_transform(trainset.targets[idx])
 
     trainloader = DataLoaderX(trainset, batch_size=128, shuffle=True, num_workers=0, pin_memory=False)
 
@@ -120,10 +128,6 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
 
         for data in trainloader:
             images, targets = data
-
-            if label_noise_ratio > 0:
-                targets = add_label_noise(targets, label_noise_ratio)
-
             images = images.to(device)
             targets = targets.to(device)
 

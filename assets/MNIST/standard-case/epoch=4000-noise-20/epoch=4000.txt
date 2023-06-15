@@ -1,0 +1,16 @@
+Hidden Neurons : 1 ; Parameters : 805 ; Train Loss : 1.850636 ; Train Acc : 0.336 ; Test Loss : 1.778531 ; Test Acc : 0.332
+Hidden Neurons : 5 ; Parameters : 3985 ; Train Loss : 0.793698 ; Train Acc : 0.790 ; Test Loss : 1.169246 ; Test Acc : 0.671
+Hidden Neurons : 10 ; Parameters : 7960 ; Train Loss : 0.229984 ; Train Acc : 0.953 ; Test Loss : 2.190788 ; Test Acc : 0.640
+Hidden Neurons : 15 ; Parameters : 11935 ; Train Loss : 0.059468 ; Train Acc : 0.994 ; Test Loss : 2.468326 ; Test Acc : 0.651
+Hidden Neurons : 20 ; Parameters : 15910 ; Train Loss : 0.023197 ; Train Acc : 1.000 ; Test Loss : 2.099265 ; Test Acc : 0.687
+Hidden Neurons : 25 ; Parameters : 19885 ; Train Loss : 0.015428 ; Train Acc : 1.000 ; Test Loss : 1.977565 ; Test Acc : 0.686
+Hidden Neurons : 30 ; Parameters : 23860 ; Train Loss : 0.010663 ; Train Acc : 1.000 ; Test Loss : 1.624416 ; Test Acc : 0.715
+Hidden Neurons : 35 ; Parameters : 27835 ; Train Loss : 0.009273 ; Train Acc : 1.000 ; Test Loss : 1.535846 ; Test Acc : 0.726
+Hidden Neurons : 40 ; Parameters : 31810 ; Train Loss : 0.009880 ; Train Acc : 1.000 ; Test Loss : 1.443965 ; Test Acc : 0.733
+Hidden Neurons : 45 ; Parameters : 35785 ; Train Loss : 0.008494 ; Train Acc : 1.000 ; Test Loss : 1.359487 ; Test Acc : 0.747
+Hidden Neurons : 50 ; Parameters : 39760 ; Train Loss : 0.007929 ; Train Acc : 1.000 ; Test Loss : 1.307050 ; Test Acc : 0.751
+Hidden Neurons : 55 ; Parameters : 43735 ; Train Loss : 0.006946 ; Train Acc : 1.000 ; Test Loss : 1.206666 ; Test Acc : 0.756
+Hidden Neurons : 60 ; Parameters : 47710 ; Train Loss : 0.006587 ; Train Acc : 1.000 ; Test Loss : 1.139018 ; Test Acc : 0.763
+Hidden Neurons : 65 ; Parameters : 51685 ; Train Loss : 0.006381 ; Train Acc : 1.000 ; Test Loss : 1.128765 ; Test Acc : 0.774
+Hidden Neurons : 70 ; Parameters : 55660 ; Train Loss : 0.006395 ; Train Acc : 1.000 ; Test Loss : 1.069220 ; Test Acc : 0.772
+Hidden Neurons : 75 ; Parameters : 59635 ; Train Loss : 0.006329 ; Train Acc : 1.000 ; Test Loss : 1.032924 ; Test Acc : 0.779

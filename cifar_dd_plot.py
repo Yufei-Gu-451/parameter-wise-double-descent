@@ -31,7 +31,6 @@ if __name__ == '__main__':
         test_losses.append(float(pair[4]))
         test_accs.append(float(pair[5]))
 
-
     scale_function = (lambda x: x**(1/3), lambda x: x**3)
 
     plt.figure(figsize=(5, 4))
