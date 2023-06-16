@@ -1,27 +1,33 @@
+import pandas as pd
 import torchvision.datasets as datasets
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
+from prefetch_generator import BackgroundGenerator
 import matplotlib.pyplot as plt
 import os
 import numpy as np
 
-#------------------------------------------------------------------------------------------
+from sklearn.manifold import TSNE
+
+# ------------------------------------------------------------------------------------------
 
 
 # Training Settings
 weight_reuse = False
 lr_decay = True
-hidden_units = [400, 600, 800, 1000]
-#hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200]
-n_epochs = 4000
+hidden_units = [22]
+# hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200]
+n_epochs = 2000
 learning_rate = 0.05
 sample_size = 4000
 label_noise_ratio = 0.2
 
-directory = "assets/MNIST/standard-case/epoch=%d-noise-20" % n_epochs
+directory = "assets/MNIST/sub-set/epoch=%d-noise-20" % n_epochs
 
 output_file = os.path.join(directory, "epoch=%d.txt" % n_epochs)
+tsne_path = os.path.join(directory, "t-SNE")
 checkpoint_path = os.path.join(directory, "ckpt")
 
 if not os.path.isdir(directory):
@@ -30,17 +36,15 @@ if not os.path.isdir(checkpoint_path):
     os.mkdir(checkpoint_path)
 
 
-#------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------
 
-
-from torch.utils.data import DataLoader
-from prefetch_generator import BackgroundGenerator
 
 class DataLoaderX(DataLoader):
     def __iter__(self):
         return BackgroundGenerator(super().__iter__())
 
-# Return the trainloader and testloader of MINST
+
+# Return the train_dataloader and test_dataloader of MINST
 def get_train_and_test_dataloader():
     transform_train = transforms.Compose([
         transforms.ToTensor(),
@@ -50,19 +54,20 @@ def get_train_and_test_dataloader():
         transforms.ToTensor(),
     ])
 
-    trainset = datasets.MNIST(root='./data', train=True, download=True, transform=transform_train)
+    train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform_train)
 
     if label_noise_ratio > 0:
         label_noise_transform = transforms.Lambda(lambda y: torch.tensor(np.random.randint(0, 10)))
-        num_samples = len(trainset)
+        num_samples = len(train_dataset)
         num_noisy_samples = int(label_noise_ratio * num_samples)
 
         noisy_indices = np.random.choice(num_samples, num_noisy_samples, replace=False)
         for idx in noisy_indices:
-            trainset.targets[idx] = label_noise_transform(trainset.targets[idx])
+            train_dataset.targets[idx] = label_noise_transform(train_dataset.targets[idx])
 
-    trainset = torch.utils.data.Subset(trainset, indices=np.arange(sample_size))
-    trainloader = DataLoaderX(trainset, batch_size=64, shuffle=True, num_workers=0, pin_memory=False)
+    train_dataset = torch.utils.data.Subset(train_dataset, indices=np.arange(sample_size))
+
+    train_dataloader = DataLoaderX(train_dataset, batch_size=128, shuffle=True, num_workers=0, pin_memory=False)
 
     '''
     for images, targets in trainloader:
@@ -76,38 +81,53 @@ def get_train_and_test_dataloader():
         break
     '''
 
-    testset = datasets.MNIST(root='./data', train=False, download=True, transform=transform_test)
+    test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transform_test)
 
-    testloader = DataLoaderX(testset, batch_size=1, shuffle=False, num_workers=0, pin_memory=False)
+    test_dataloader = DataLoaderX(test_dataset, batch_size=128, shuffle=False, num_workers=0, pin_memory=False)
 
     print('Load MINST dataset success;')
-    return trainloader, testloader
+    return train_dataloader, test_dataloader
 
 
-#------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------
 
 
-class simple_FC(nn.Module):
+class Simple_FC(nn.Module):
     def __init__(self, n_hidden):
-        super(simple_FC, self).__init__()
+        super(Simple_FC, self).__init__()
         self.features = nn.Sequential(
             nn.Flatten(),
             nn.Linear(784, n_hidden),
             nn.ReLU()
         )
-        #self.dropout = nn.Dropout(0.6)
+        # self.dropout = nn.Dropout(0.6)
         self.classifier = nn.Linear(n_hidden, 10)
 
-    def forward(self, x):
+    def forward_half1(self, x):
         out = self.features(x)
         out = out.view(out.size(0), -1)
-        out = self.classifier(out)
         return out
 
+    def forward_half2(self, x):
+        out = self.classifier(x)
+        return out
+
+    def forward(self, x, path='all'):
+        if path == 'all':
+            x = self.forward_half1(x)
+            x = self.forward_half2(x)
+        elif path == 'half1':
+            x = self.forward_half1(x)
+        elif path == 'half2':
+            x = self.forward_half2(x)
+        else:
+            raise NotImplementedError
+
+        return x
 
 # Set the neural network model to be used
-def get_model(hidden_unit):
-    model = simple_FC(hidden_unit)
+def get_model(hidden_unit, device):
+    model = Simple_FC(hidden_unit)
     model = model.to(device)
 
     if hidden_unit == 1:
@@ -119,11 +139,15 @@ def get_model(hidden_unit):
 
         if weight_reuse:
             print('Use previous checkpoints to initialize the weights:')
-            i = 1 # load the closest previous model for weight reuse
-            while not os.path.exists(os.path.join(checkpoint_path, 'Simple_FC_%d.pth'%(hidden_unit-i))):
-                print('     loading from simple_FC_%d.pth'%(hidden_unit-i))
+            i = 1
+
+            # load the closest previous model for weight reuse
+            while not os.path.exists(os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % (hidden_unit-i))):
+                print('     loading from simple_FC_%d.pth' % (hidden_unit-i))
                 i += 1
-            checkpoint = torch.load(os.path.join(checkpoint_path, 'Simple_FC_%d.pth'%(hidden_unit-i)))
+
+            checkpoint = torch.load(os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % (hidden_unit-i)))
+
             with torch.no_grad():
                 model.features[1].weight[:hidden_unit-i, :].copy_(checkpoint['net']['features.1.weight'])
                 model.features[1].bias[:hidden_unit-i].copy_(checkpoint['net']['features.1.bias'])
@@ -132,23 +156,23 @@ def get_model(hidden_unit):
 
     print("Model with %d hidden neurons successfully generated;" % hidden_unit)
 
-    print('Number of parameters: %d'%sum(p.numel() for p in model.parameters()))
+    print('Number of parameters: %d' % sum(p.numel() for p in model.parameters()))
     return model
 
 
-#------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------
 
 
 # Model Training
-def train(trainloader, model, optimizer, criterion):
+def train(train_dataloader, model, optimizer, criterion):
     model.train()
     cumulative_loss, correct, total = 0.0, 0, 0
 
-    for idx, (inputs, labels) in enumerate(trainloader):
-        # Calculate the training loss
+    for idx, (inputs, labels) in enumerate(train_dataloader):
         labels = torch.nn.functional.one_hot(labels, num_classes=10).float()
         inputs = inputs.to(device)
         labels = labels.to(device)
+
         optimizer.zero_grad()
         outputs = model(inputs)
         loss = criterion(outputs, labels)
@@ -160,23 +184,23 @@ def train(trainloader, model, optimizer, criterion):
         total += labels.size(0)
         correct += predicted.eq(labels.argmax(1)).sum().item()
 
-    train_loss = cumulative_loss / len(trainloader)
+    train_loss = cumulative_loss / len(train_dataloader)
     train_acc = correct / total
 
     return model, train_loss, train_acc
 
 
 # Model testing
-def test(testloader, model):
+def test(test_dataloader):
     model.eval()
     cumulative_loss, correct, total = 0.0, 0, 0
 
     with torch.no_grad():
-        for idx, (inputs, labels) in enumerate(testloader):
-            # Calculate the testing loss
+        for idx, (inputs, labels) in enumerate(test_dataloader):
             labels = torch.nn.functional.one_hot(labels, num_classes=10).float()
             inputs = inputs.to(device)
             labels = labels.to(device)
+
             outputs = model(inputs)
             loss = criterion(outputs, labels)
 
@@ -185,10 +209,43 @@ def test(testloader, model):
             total += labels.size(0)
             correct += predicted.eq(labels.argmax(1)).sum().item()
 
-    test_loss = cumulative_loss / len(testloader)
+    test_loss = cumulative_loss / len(test_dataloader)
     test_acc = correct/total
 
     return test_loss, test_acc
+
+
+def model_t_sne(model, trainloader, hidden_unit):
+    model.eval()
+
+    hidden_features, predicts = [], []
+
+    with torch.no_grad():
+        for idx, (inputs, labels) in enumerate(trainloader):
+            inputs = inputs.to(device)
+
+            hidden_feature = model(inputs, path='half1')
+            outputs = model(hidden_feature, path='half2')
+
+            for hf in hidden_feature:
+                hidden_features.append(hf.cpu().detach().numpy())
+
+            for output in outputs:
+                predict = output.cpu().detach().numpy().argmax()
+                predicts.append(predict)
+
+    print(len(hidden_features))
+    hidden_features = np.array(hidden_features)
+    tsne = TSNE(n_components=2, random_state=42)
+    X_tsne = tsne.fit_transform(hidden_features)
+
+    plt.figure(figsize=(30, 20))
+    plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=predicts, cmap=plt.cm.get_cmap("jet", 10))
+    plt.colorbar(ticks=range(10))
+    plt.title('t-SNE Visualization of MNIST')
+    plt.xlabel('t-SNE Dimension 1')
+    plt.ylabel('t-SNE Dimension 2')
+    plt.savefig(os.path.join(tsne_path, 't-SNE_Hidden_Features_%d.jpg' % hidden_unit))
 
 
 # Train and Evalute the model
@@ -205,19 +262,20 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
         model, train_loss, train_acc = train(trainloader, model, optimizer, criterion)
 
         # Print the status of current training and testing outcome
-        print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f" % (epoch, train_loss, train_acc))
+        print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f" % (epoch + 1, train_loss, train_acc))
 
     # Evaluate the model
-    test_loss, test_acc = test(testloader, model)
+    test_loss, test_acc = test(testloader)
 
-    if weight_reuse:
-        state = {
-            'net': model.state_dict(),
-            'acc': test_acc,
-            'epoch': epoch,
-        }
-        torch.save(state, os.path.join(checkpoint_path, 'Simple_FC_%d.pth'%hidden_unit))
-        print("Torch saved successfully！")
+    model_t_sne(model, trainloader, hidden_unit)
+
+    state = {
+        'net': model.state_dict(),
+        'acc': test_acc,
+        'epoch': epoch,
+    }
+    torch.save(state, os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % hidden_unit))
+    print("Torch saved successfully！")
 
     return train_loss, train_acc, test_loss, test_acc
 
@@ -231,12 +289,12 @@ if __name__ == '__main__':
     torch.backends.cudnn.benchmark = True
 
     # Get the training and testing data of specific sample size
-    trainloader, testloader = get_train_and_test_dataloader()
+    train_dataloader, test_dataloader = get_train_and_test_dataloader()
 
     # Main Training Unit
     for hidden_unit in hidden_units:
         # Generate the model with specific number of hidden_unit
-        model = get_model(hidden_unit)
+        model = get_model(hidden_unit, device)
         parameters = sum(p.numel() for p in model.parameters())
 
         # Set the optimizer and criterion 
@@ -244,9 +302,9 @@ if __name__ == '__main__':
         criterion = torch.nn.CrossEntropyLoss()
         criterion = criterion.to(device)
 
-        # Train and evalute the model
-        train_loss, train_acc, test_loss, test_acc = train_and_evaluate_model(trainloader, testloader, \
-                                    model, optimizer, criterion, hidden_unit)
+        # Train and evaluate the model
+        train_loss, train_acc, test_loss, test_acc = train_and_evaluate_model(train_dataloader, test_dataloader,
+                                                                              model, optimizer, criterion, hidden_unit)
 
         # Print training and evaluation outcome
         print("\nHidden Neurons : %d ; Parameters : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; "
