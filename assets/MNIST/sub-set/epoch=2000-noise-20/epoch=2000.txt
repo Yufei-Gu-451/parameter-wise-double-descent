@@ -1,0 +1,1 @@
+Hidden Neurons : 22 ; Parameters : 17500 ; Train Loss : 0.190234 ; Train Acc : 0.967 ; Test Loss : 1.147845 ; Test Acc : 0.722

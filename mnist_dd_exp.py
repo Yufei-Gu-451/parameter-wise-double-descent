@@ -17,14 +17,14 @@ from sklearn.manifold import TSNE
 # Training Settings
 weight_reuse = False
 lr_decay = True
-hidden_units = [22]
+hidden_units = [2, 4, 8, 10, 12, 14, 16, 20, 25, 40, 60, 100, 400]
 # hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200]
-n_epochs = 2000
+n_epochs = 4000
 learning_rate = 0.05
 sample_size = 4000
 label_noise_ratio = 0.2
 
-directory = "assets/MNIST/sub-set/epoch=%d-noise-20" % n_epochs
+directory = "assets/MNIST/sub-set/epoch=%d-noise-20-tsne" % n_epochs
 
 output_file = os.path.join(directory, "epoch=%d.txt" % n_epochs)
 tsne_path = os.path.join(directory, "t-SNE")
@@ -32,6 +32,8 @@ checkpoint_path = os.path.join(directory, "ckpt")
 
 if not os.path.isdir(directory):
     os.mkdir(directory)
+if not os.path.isdir(tsne_path):
+    os.mkdir(tsne_path)
 if not os.path.isdir(checkpoint_path):
     os.mkdir(checkpoint_path)
 
@@ -242,7 +244,7 @@ def model_t_sne(model, trainloader, hidden_unit):
     plt.figure(figsize=(30, 20))
     plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=predicts, cmap=plt.cm.get_cmap("jet", 10))
     plt.colorbar(ticks=range(10))
-    plt.title('t-SNE Visualization of MNIST')
+    plt.title('t-SNE Hidden Features Visualization (N = %d)' % hidden_unit)
     plt.xlabel('t-SNE Dimension 1')
     plt.ylabel('t-SNE Dimension 2')
     plt.savefig(os.path.join(tsne_path, 't-SNE_Hidden_Features_%d.jpg' % hidden_unit))
