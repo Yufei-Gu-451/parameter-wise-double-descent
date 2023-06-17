@@ -7,24 +7,30 @@ import os
 
 from torch.utils.data import DataLoader
 from prefetch_generator import BackgroundGenerator
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
+
 
 # ------------------------------------------------------------------------------------------
 
 
 # Training Settings
 lr_decay = True
-CNN_widths = [2, 4, 8, 10, 14]
+CNN_widths = [2, 6, 10, 12, 16, 20, 40, 60]
 n_epochs = 100
 learning_rate = 0.1
 label_noise_ratio = 0.2
 
-directory = "assets/CIFAR-10/std/epoch=%d-noise=%d" % (n_epochs, label_noise_ratio * 100)
+directory = "assets/CIFAR-10/std/epoch=%d-noise=%d-tsne" % (n_epochs, label_noise_ratio * 100)
 
 output_file = os.path.join(directory, "epoch=%d-noise=%d.txt" % (n_epochs, label_noise_ratio * 100))
+tsne_path = os.path.join(directory, "t-SNE")
 checkpoint_path = os.path.join(directory, "ckpt")
 
 if not os.path.isdir(directory):
     os.mkdir(directory)
+if not os.path.isdir(tsne_path):
+    os.mkdir(tsne_path)
 if not os.path.isdir(checkpoint_path):
     os.mkdir(checkpoint_path)
 
@@ -63,15 +69,7 @@ def get_train_and_test_dataloader():
 
     print('Load CIFAR-10 dataset success;\n')
 
-    return len(trainset), len(testset), trainloader, testloader
-
-def add_label_noise(labels, noise_level):
-    num_samples = labels.size(0)
-    num_corrupt = int(num_samples * noise_level)
-    noise_indices = np.random.choice(num_samples, num_corrupt, replace=False)
-    noisy_labels = labels.clone()
-    noisy_labels[noise_indices] = torch.randint(0, 10, (num_corrupt,), dtype=torch.long)
-    return noisy_labels
+    return trainloader, testloader
 
 
 # ------------------------------------------------------------------------------------------\
@@ -115,11 +113,92 @@ class FiveLayerCNN(nn.Module):
         x = self.fc(x)
         return x
 
+    def forward_1(self, x):
+        x = self.pool1(self.relu1(self.bn1(self.conv1(x))))
+        return x
+
+    def forward_2(self, x):
+        x = self.pool2(self.relu2(self.bn2(self.conv2(x))))
+        return x
+
+    def forward_3(self, x):
+        x = self.pool3(self.relu3(self.bn3(self.conv3(x))))
+        return x
+
+    def forward_4(self, x):
+        x = self.pool4(self.relu4(self.bn4(self.conv4(x))))
+        return x
+
+    def forward_5(self, x):
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+        return x
+
 
 # ------------------------------------------------------------------------------------------
 
 
-def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterion, n_train_samples, n_test_samples):
+def t_sne(X, y, name):
+    tsne = TSNE(n_components=2, random_state=42)
+    X_tsne = tsne.fit_transform(X)
+
+    plt.figure(figsize=(30, 20))
+    plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=y, cmap=plt.cm.get_cmap("jet", 10))
+    plt.colorbar(ticks=range(10))
+    plt.title('t-SNE Hidden Features Visualization' + name)
+    plt.xlabel('t-SNE Dimension 1')
+    plt.ylabel('t-SNE Dimension 2')
+    plt.savefig(os.path.join(tsne_path, name + '.jpg'))
+
+    return
+
+def model_t_sne(model, trainloader, CNN_width):
+    model.eval()
+
+    hidden_features_1 = []
+    hidden_features_2 = []
+    hidden_features_3 = []
+    hidden_features_4 = []
+    predicts = []
+
+    with torch.no_grad():
+        for idx, (inputs, labels) in enumerate(trainloader):
+            inputs = inputs.to(device)
+
+            hidden_feature_1 = model.forward_1(inputs)
+            hidden_feature_2 = model.forward_2(hidden_feature_1)
+            hidden_feature_3 = model.forward_3(hidden_feature_2)
+            hidden_feature_4 = model.forward_4(hidden_feature_3)
+            outputs = model.forward_5(hidden_feature_4)
+
+            for i in range(len(outputs)):
+                hidden_features_1.append(hidden_feature_1[i].cpu().detach().numpy())
+                hidden_features_2.append(hidden_feature_2[i].cpu().detach().numpy())
+                hidden_features_3.append(hidden_feature_3[i].cpu().detach().numpy())
+                hidden_features_4.append(hidden_feature_4[i].cpu().detach().numpy())
+                predicts.append(outputs[i].cpu().detach().numpy().argmax())
+
+    hidden_features_1 = np.array(hidden_features_1).reshape(50000, 2 * 16 * 16)
+    print(hidden_features_1.shape)
+    hidden_features_2 = np.array(hidden_features_2).reshape(50000, 4 * 8 * 8)
+    print(hidden_features_2.shape)
+    hidden_features_3 = np.array(hidden_features_3).reshape(50000, 8 * 4 * 4)
+    print(hidden_features_3.shape)
+    hidden_features_4 = np.array(hidden_features_4).reshape(50000, 16 * 1 * 1)
+    print(hidden_features_4.shape)
+
+    t_sne(hidden_features_1, predicts, 'Hidden_Features_1 (K = %d)' % CNN_width)
+    print('Hidden Features 1 t-SNE Visualization Complete;')
+    t_sne(hidden_features_2, predicts, 'Hidden_Features_2 (K = %d)' % CNN_width)
+    print('Hidden Features 2 t-SNE Visualization Complete;')
+    t_sne(hidden_features_3, predicts, 'Hidden_Features_3 (K = %d)' % CNN_width)
+    print('Hidden Features 3 t-SNE Visualization Complete;')
+    t_sne(hidden_features_4, predicts, 'Hidden_Features_4 (K = %d)' % CNN_width)
+    print('Hidden Features 4 t-SNE Visualization Complete;')
+
+    return
+
+def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterion, CNN_width):
     total_train_step = 0
 
     for i in range(n_epochs):
@@ -139,6 +218,7 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
 
             cumulative_loss += loss.item()
             _, predicted = torch.max(outputs.data, 1)
+            total += targets.size(0)
             correct += (predicted == targets).sum().item()
 
             if total_train_step % 512 == 0:
@@ -147,7 +227,7 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
             total_train_step = total_train_step + 1
 
         train_loss = cumulative_loss / len(trainloader)
-        train_acc = correct / n_train_samples
+        train_acc = correct / total
 
         print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f" % (i, train_loss, train_acc))
 
@@ -169,7 +249,16 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
             correct += (predicted == targets).sum().item()
 
     test_loss = cumulative_loss / len(testloader)
-    test_acc = correct / n_test_samples
+    test_acc = correct / total
+
+    model_t_sne(model, trainloader, CNN_width)
+
+    state = {
+        'net': model.state_dict(),
+        'acc': test_acc
+    }
+    torch.save(state, os.path.join(checkpoint_path, '5-Layer-CNN_%d.pth' % CNN_width))
+    print("Torch saved successfully！")
 
     return train_loss, train_acc, test_loss, test_acc
 
@@ -186,7 +275,7 @@ if __name__ == '__main__':
     torch.backends.cudnn.benchmark = True
 
     # Get the training and testing data of specific sample size
-    n_train_samples, n_test_samples, trainloader, testloader = get_train_and_test_dataloader()
+    trainloader, testloader = get_train_and_test_dataloader()
 
     # Main Training Unit
     for CNN_width in CNN_widths:
@@ -205,7 +294,7 @@ if __name__ == '__main__':
 
         # Train and evalute the model
         train_loss, train_acc, test_loss, test_acc = train_and_evaluate_model(trainloader, testloader,
-                                model, optimizer, criterion, n_train_samples, n_test_samples)
+                                model, optimizer, criterion, CNN_width)
 
         # Print training and evaluation outcome
         print("\nCNN_width : %d ; Parameters : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; "

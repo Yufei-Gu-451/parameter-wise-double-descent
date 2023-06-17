@@ -1,15 +1,16 @@
-import pandas as pd
 import torchvision.datasets as datasets
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from prefetch_generator import BackgroundGenerator
-import matplotlib.pyplot as plt
-import os
-import numpy as np
-
 from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+
+
+
 
 # ------------------------------------------------------------------------------------------
 
@@ -236,7 +237,6 @@ def model_t_sne(model, trainloader, hidden_unit):
                 predict = output.cpu().detach().numpy().argmax()
                 predicts.append(predict)
 
-    print(len(hidden_features))
     hidden_features = np.array(hidden_features)
     tsne = TSNE(n_components=2, random_state=42)
     X_tsne = tsne.fit_transform(hidden_features)
