@@ -14,14 +14,25 @@ import os
 
 
 # Training Settings
-weight_reuse = False
-lr_decay = True
-# hidden_units = [2, 4, 8, 10, 12, 14, 16, 20, 25, 40, 60, 100, 400]
-hidden_units = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200, 400]
-n_epochs = 4000
-learning_rate = 0.05
+hidden_units = [20]
+# hidden_units = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200, 400]
+
 sample_size = 4000
+batch_size = 64
 label_noise_ratio = 0.0
+
+n_epochs = 200
+learning_rate_decay = True
+learning_rate = 0.05
+
+weight_reuse = False
+
+tSNE_Visualization = False
+
+save_model = True
+
+hebbian_learning = True
+hebbian_learning_rate = 1
 
 directory = "assets/MNIST/sub-set/epoch=%d-noise-%d-tsne" % (n_epochs, 0)
 
@@ -68,7 +79,7 @@ def get_train_and_test_dataloader():
 
     train_dataset = torch.utils.data.Subset(train_dataset, indices=np.arange(sample_size))
 
-    train_dataloader = DataLoaderX(train_dataset, batch_size=128, shuffle=True, num_workers=0, pin_memory=False)
+    train_dataloader = DataLoaderX(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=False)
 
     '''
     for images, targets in trainloader:
@@ -84,7 +95,7 @@ def get_train_and_test_dataloader():
 
     test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transform_test)
 
-    test_dataloader = DataLoaderX(test_dataset, batch_size=128, shuffle=False, num_workers=0, pin_memory=False)
+    test_dataloader = DataLoaderX(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=False)
 
     print('Load MINST dataset success;')
     return train_dataloader, test_dataloader
@@ -95,14 +106,23 @@ def get_train_and_test_dataloader():
 
 class Simple_FC(nn.Module):
     def __init__(self, n_hidden):
+        self.n_hidden_neuron = n_hidden
+
         super(Simple_FC, self).__init__()
         self.features = nn.Sequential(
             nn.Flatten(),
             nn.Linear(784, n_hidden),
             nn.ReLU()
         )
+
+        if hebbian_learning:
+            self.features.requires_grad_(False)
+
         # self.dropout = nn.Dropout(0.6)
         self.classifier = nn.Linear(n_hidden, 10)
+
+    def get_n_hidden_neuron(self):
+        return self.n_hidden_neuron
 
     def forward_half1(self, x):
         out = self.features(x)
@@ -126,6 +146,26 @@ class Simple_FC(nn.Module):
 
         return x
 
+def load_model_from_checkpoint(model, hidden_unit):
+    print(' Weight Reuse: Use previous checkpoints to initialize the weights:')
+    i = 1
+
+    # load the closest previous model for weight reuse
+    while not os.path.exists(os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % (hidden_unit - i))):
+        i += 1
+
+    print('     loading from simple_FC_%d.pth' % (hidden_unit - i))
+
+    checkpoint = torch.load(os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % (hidden_unit - i)))
+
+    with torch.no_grad():
+        model.features[1].weight[:hidden_unit - i, :].copy_(checkpoint['net']['features.1.weight'])
+        model.features[1].bias[:hidden_unit - i].copy_(checkpoint['net']['features.1.bias'])
+        model.classifier.weight[:, :hidden_unit - i].copy_(checkpoint['net']['classifier.weight'])
+        model.classifier.bias.copy_(checkpoint['net']['classifier.bias'])
+
+    return model
+
 # Set the neural network model to be used
 def get_model(hidden_unit, device):
     model = Simple_FC(hidden_unit)
@@ -139,33 +179,70 @@ def get_model(hidden_unit, device):
         torch.nn.init.normal_(model.classifier.weight, mean=0.0, std=0.1)
 
         if weight_reuse:
-            print('Use previous checkpoints to initialize the weights:')
-            i = 1
-
-            # load the closest previous model for weight reuse
-            while not os.path.exists(os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % (hidden_unit-i))):
-                print('     loading from simple_FC_%d.pth' % (hidden_unit-i))
-                i += 1
-
-            checkpoint = torch.load(os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % (hidden_unit-i)))
-
-            with torch.no_grad():
-                model.features[1].weight[:hidden_unit-i, :].copy_(checkpoint['net']['features.1.weight'])
-                model.features[1].bias[:hidden_unit-i].copy_(checkpoint['net']['features.1.bias'])
-                model.classifier.weight[:, :hidden_unit-i].copy_(checkpoint['net']['classifier.weight'])
-                model.classifier.bias.copy_(checkpoint['net']['classifier.bias'])
+            model = load_model_from_checkpoint(model, hidden_unit)
 
     print("Model with %d hidden neurons successfully generated;" % hidden_unit)
 
     print('Number of parameters: %d' % sum(p.numel() for p in model.parameters()))
+
     return model
 
 
 # ------------------------------------------------------------------------------------------
 
+class Hebbian_Learning():
+    def __init__(self):
+        self.iterating_counts = 0
+        self.past_products = 0
+        self.learning_rate = 1
+
+    def average_products(self):
+        if self.iterating_counts == 0:
+            return 0
+        else:
+            return self.past_products / self.iterating_counts
+
+    def add_count(self):
+        self.iterating_counts += 1
+
+    def add_product(self, product):
+        self.past_products += product
+
+    def get_learning_rate(self):
+        return self.learning_rate / pow(1 + self.iterating_counts // batch_size, 0.5)
+
+def hebbian_train(model, inputs, HL):
+    for input in inputs:
+        hidden_feature = model(input, path='half1')
+        input = input.cpu().detach().numpy().reshape(1, 784)
+        hidden_feature = hidden_feature.cpu().detach().numpy()[0].reshape(model.n_hidden_neuron, 1)
+
+        # Activation Threshold
+        delta = HL.get_learning_rate() * (hidden_feature * input - HL.average_products())
+
+        # Gradient Threshold
+        threshold = np.percentile(delta, 10)
+        delta = np.where(delta >= threshold, delta, 0)
+
+        # Replace parameters in-place
+        state_dict = model.state_dict()
+        parameters = state_dict['features.1.weight'].cpu().detach().numpy() - delta
+        state_dict['features.1.weight'] = torch.from_numpy(parameters).to(device)
+        model.load_state_dict(state_dict)
+
+        # Add count
+        HL.add_count()
+        HL.add_product(hidden_feature * input)
+
+        if HL.iterating_counts % 1000 == 0:
+            print(HL.iterating_counts, HL.get_learning_rate())
+            print(HL.past_products.mean())
+
+    return model, HL
+
 
 # Model Training
-def train(train_dataloader, model, optimizer, criterion):
+def train(train_dataloader, model, optimizer, criterion, HL=None):
     model.train()
     cumulative_loss, correct, total = 0.0, 0, 0
 
@@ -180,6 +257,9 @@ def train(train_dataloader, model, optimizer, criterion):
         loss.backward()
         optimizer.step()
 
+        if hebbian_learning:
+            model, HL = hebbian_train(model, inputs, HL)
+
         cumulative_loss += loss.item()
         _, predicted = outputs.max(1)
         total += labels.size(0)
@@ -188,7 +268,7 @@ def train(train_dataloader, model, optimizer, criterion):
     train_loss = cumulative_loss / len(train_dataloader)
     train_acc = correct / total
 
-    return model, train_loss, train_acc
+    return model, train_loss, train_acc, HL
 
 
 # Model testing
@@ -248,18 +328,33 @@ def model_t_sne(model, trainloader, hidden_unit):
     plt.savefig(os.path.join(tsne_path, 't-SNE_Hidden_Features_%d.jpg' % hidden_unit))
 
 
+def model_save(model, epoch, test_accuracy):
+    state = {
+        'net': model.state_dict(),
+        'acc': test_accuracy,
+        'epoch': epoch,
+    }
+    torch.save(state, os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % hidden_unit))
+    print("Torch saved successfully！")
+
+
 # Train and Evalute the model
 def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterion, hidden_unit):
     train_loss, train_acc, epoch = 0.0, 0.0, 0
 
+    # Train the model
+    if hebbian_learning:
+        HL = Hebbian_Learning()
+    else:
+        HL = None
+
     # Stops the training within the pre-set epoch size or when the model fits the training set (99%)
     for epoch in range(n_epochs):
-        if epoch % 50 == 0:
+        if learning_rate_decay and epoch % 50 == 0:
             optimizer.param_groups[0]['lr'] = learning_rate / pow(1 + epoch // 50, 0.5)
             print("Learning Rate : ", optimizer.param_groups[0]['lr'])
 
-        # Train the model
-        model, train_loss, train_acc = train(trainloader, model, optimizer, criterion)
+        model, train_loss, train_acc, HL = train(trainloader, model, optimizer, criterion, HL)
 
         # Print the status of current training and testing outcome
         print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f" % (epoch + 1, train_loss, train_acc))
@@ -267,15 +362,11 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
     # Evaluate the model
     test_loss, test_acc = test(testloader)
 
-    model_t_sne(model, trainloader, hidden_unit)
+    if tSNE_Visualization:
+        model_t_sne(model, trainloader, hidden_unit)
 
-    state = {
-        'net': model.state_dict(),
-        'acc': test_acc,
-        'epoch': epoch,
-    }
-    torch.save(state, os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % hidden_unit))
-    print("Torch saved successfully！")
+    if save_model:
+        model_save(model, test_acc, epoch)
 
     return train_loss, train_acc, test_loss, test_acc
 
