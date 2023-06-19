@@ -1,1 +1,0 @@
-CNN_width : 2 ; Parameters : 1826 ; Train Loss : 1.988138 ; Train Acc : 0.299 ; Test Loss : 1.718038 ; Test Acc : 0.388

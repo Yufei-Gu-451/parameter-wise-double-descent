@@ -5,7 +5,7 @@ import math
 
 epochs = 4000
 
-directory = 'assets/MNIST/sub-set/epoch=%d-noise-20-tsne' % epochs
+directory = 'assets/MNIST/sub-set/epoch=%d-noise-0-tsne' % epochs
 plots_directory = os.path.join(directory, 'plots')
 input_file = os.path.join(directory, 'epoch=%d.txt' % epochs)
 
@@ -42,9 +42,9 @@ if __name__ == '__main__':
     ax.set_xscale('function', functions=scale_function)
     plt.plot(hidden_units, test_losses, marker='o', label='test')
     plt.plot(hidden_units, train_losses, marker='o', label='train')
-    plt.xticks([1, 5, 15, 40, 100, 250, 500, 1000])
+    plt.xticks([1, 5, 15, 40, 100, 250, 500])
     #ax.vlines([4], -0.01, 2.55, linestyles='dashed', color='black')
-    plt.ylim((-0.1, 2.6))
+    #plt.ylim((-0.1, 2.6))
     plt.xlabel('Number of hidden units (H)')
     plt.ylabel('Squared loss')
     plt.title('MNIST (n = 4×10ˆ3,d = 784,K = 10)')
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     ax.set_xscale('function', functions=scale_function)
     plt.plot(parameters, test_losses, marker='o', label='test')
     plt.plot(parameters, train_losses, marker='o', label='train')
-    plt.xticks([1, 5, 15, 40, 100, 200, 400, 800])
+    plt.xticks([1, 5, 15, 40, 100, 200, 400])
     #plt.yticks([0.00, 0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.14])
     #plt.xlim((10, 300))
     #ax.vlines([40], -0.003, 0.09, linestyles='dashed', color='black')
@@ -70,7 +70,7 @@ if __name__ == '__main__':
     ax.set_xscale('function', functions=scale_function)
     plt.plot(hidden_units, test_accs, marker='o', label='test')
     plt.plot(hidden_units, train_accs, marker='o', label='train')
-    plt.xticks([1, 5, 15, 40, 100, 250, 500, 1000])
+    plt.xticks([1, 5, 15, 40, 100, 250, 500])
     plt.xlabel('Number of hidden units (H)')
     plt.ylabel('Accuracy')
     plt.title('MNIST (n = 4×10ˆ3,d = 784,K = 10)')
@@ -81,7 +81,7 @@ if __name__ == '__main__':
     ax.set_xscale('function', functions=scale_function)
     plt.plot(parameters, test_accs, marker='o', label='test')
     plt.plot(parameters, train_accs, marker='o', label='train')
-    plt.xticks([1, 5, 15, 40, 100, 200, 400, 800])
+    plt.xticks([1, 5, 15, 40, 100, 200, 400])
     plt.xlabel('Number of parameters/weights (×10ˆ3)')
     plt.ylabel('Accuracy')
     plt.title('MNIST (n = 4×10ˆ3,d = 784,K = 10)')

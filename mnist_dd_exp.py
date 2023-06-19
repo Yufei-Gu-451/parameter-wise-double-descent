@@ -10,22 +10,20 @@ import numpy as np
 import os
 
 
-
-
 # ------------------------------------------------------------------------------------------
 
 
 # Training Settings
 weight_reuse = False
 lr_decay = True
-hidden_units = [2, 4, 8, 10, 12, 14, 16, 20, 25, 40, 60, 100, 400]
-# hidden_units = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200]
+# hidden_units = [2, 4, 8, 10, 12, 14, 16, 20, 25, 40, 60, 100, 400]
+hidden_units = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200, 400]
 n_epochs = 4000
 learning_rate = 0.05
 sample_size = 4000
-label_noise_ratio = 0.2
+label_noise_ratio = 0.0
 
-directory = "assets/MNIST/sub-set/epoch=%d-noise-20-tsne" % n_epochs
+directory = "assets/MNIST/sub-set/epoch=%d-noise-%d-tsne" % (n_epochs, 0)
 
 output_file = os.path.join(directory, "epoch=%d.txt" % n_epochs)
 tsne_path = os.path.join(directory, "t-SNE")

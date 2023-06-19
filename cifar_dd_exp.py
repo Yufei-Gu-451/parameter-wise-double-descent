@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 # Training Settings
 lr_decay = True
-CNN_widths = [2, 6, 10, 12, 16, 20, 40, 60]
+CNN_widths = [6, 10, 12, 16, 20, 40, 60]
 n_epochs = 100
 learning_rate = 0.1
 label_noise_ratio = 0.2
@@ -178,13 +178,13 @@ def model_t_sne(model, trainloader, CNN_width):
                 hidden_features_4.append(hidden_feature_4[i].cpu().detach().numpy())
                 predicts.append(outputs[i].cpu().detach().numpy().argmax())
 
-    hidden_features_1 = np.array(hidden_features_1).reshape(50000, 2 * 16 * 16)
+    hidden_features_1 = np.array(hidden_features_1).reshape(50000, CNN_width * 16 * 16)
     print(hidden_features_1.shape)
-    hidden_features_2 = np.array(hidden_features_2).reshape(50000, 4 * 8 * 8)
+    hidden_features_2 = np.array(hidden_features_2).reshape(50000, 2 * CNN_width * 8 * 8)
     print(hidden_features_2.shape)
-    hidden_features_3 = np.array(hidden_features_3).reshape(50000, 8 * 4 * 4)
+    hidden_features_3 = np.array(hidden_features_3).reshape(50000, 4 * CNN_width * 4 * 4)
     print(hidden_features_3.shape)
-    hidden_features_4 = np.array(hidden_features_4).reshape(50000, 16 * 1 * 1)
+    hidden_features_4 = np.array(hidden_features_4).reshape(50000, 8 * CNN_width * 1 * 1)
     print(hidden_features_4.shape)
 
     t_sne(hidden_features_1, predicts, 'Hidden_Features_1 (K = %d)' % CNN_width)
