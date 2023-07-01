@@ -1,13 +1,12 @@
-import torchvision.datasets as datasets
 import torch
 import torch.nn as nn
+import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from prefetch_generator import BackgroundGenerator
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import numpy as np
-import sys
 import csv
 import os
 
@@ -41,9 +40,9 @@ checkpoint_path = os.path.join(directory, "ckpt")
 
 if not os.path.isdir(directory):
     os.mkdir(directory)
-if not os.path.isdir(tsne_path):
+if tSNE_Visualization and not os.path.isdir(tsne_path):
     os.mkdir(tsne_path)
-if not os.path.isdir(checkpoint_path):
+if save_model and not os.path.isdir(checkpoint_path):
     os.mkdir(checkpoint_path)
 
 
@@ -196,64 +195,6 @@ def get_model(hidden_unit, device):
 
 # ------------------------------------------------------------------------------------------
 
-class Hebbian_Learning():
-    def __init__(self):
-        self.iterating_counts = 0
-        self.past_products = 0
-        self.learning_rate = hebbian_learning_rate
-
-    def average_products(self):
-        if self.iterating_counts == 0:
-            return 0
-        else:
-            return self.past_products / self.iterating_counts
-
-    def add_count(self):
-        self.iterating_counts += 1
-
-    def add_product(self, product):
-        self.past_products += product
-
-    def get_learning_rate(self):
-        return self.learning_rate * pow(0.95, self.iterating_counts // sample_size)
-
-
-def hebbian_train(model, inputs, HL):
-    for input in inputs:
-        hidden_feature = model(input, path='half1')
-        hidden_feature = hidden_feature.cpu().detach().numpy()[0].reshape(model.n_hidden_neuron, 1)
-        input = input.cpu().detach().numpy().reshape(1, 784)
-
-        # Activation Threshold
-        delta = HL.get_learning_rate() * np.subtract(hidden_feature * input, HL.average_products())
-
-        # Gradient Threshold
-        threshold_1 = np.percentile(delta, 90)
-        threshold_2 = np.percentile(delta, 10)
-
-        delta = np.add(np.where(delta >= threshold_1, delta, 0), np.where(delta <= threshold_2, delta, 0))
-
-        # Replace parameters in-place
-        state_dict = model.state_dict()
-        parameters = state_dict['features.1.weight'].cpu().detach().numpy()
-        state_dict['features.1.weight'] = torch.from_numpy(np.subtract(parameters, delta)).to(device)
-        model.load_state_dict(state_dict)
-
-        if HL.iterating_counts % 500 == 0:
-            np.set_printoptions(threshold=sys.maxsize)
-            print(HL.iterating_counts, HL.get_learning_rate())
-            print(np.count_nonzero(delta < 0), np.count_nonzero(parameters < 0))
-            print(delta.mean(), parameters.mean())
-            print()
-
-        #assert((parameters - delt == model.state_dict()['features.1.weight'].cpu().detach().numpy().all())
-
-        # Add count
-        HL.add_count()
-        HL.add_product(hidden_feature * input)
-
-    return model, HL
-
 
 # Model Training
 def train(train_dataloader, model, optimizer, criterion, HL=None):
@@ -271,8 +212,8 @@ def train(train_dataloader, model, optimizer, criterion, HL=None):
         loss.backward()
         optimizer.step()
 
-        if hebbian_learning:
-            model, HL = hebbian_train(model, inputs, HL)
+        #if hebbian_learning:
+        #    model, HL = hebbian_train(model, inputs, HL)
 
         cumulative_loss += loss.item()
         _, predicted = outputs.max(1)
@@ -351,11 +292,12 @@ def model_save(model, epoch, test_accuracy):
     torch.save(state, os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % hidden_unit))
     print("Torch saved successfully！")
 
+
 def status_save(hidden_unit, epoch, parameters, train_loss, train_acc, test_loss, test_acc):
     dictionary = {'Hidden Neurons': hidden_unit, 'Epoch': epoch, 'Parameters': parameters, 'Train Loss': train_loss,
                   'Train Accuracy': train_acc, 'Test Loss': test_loss, 'Test Accuracy': test_acc}
 
-    with open("person.csv", "w", newline="") as fp:
+    with open(dictionary_path, "a", newline="") as fp:
         # Create a writer object
         writer = csv.DictWriter(fp, fieldnames=dictionary.keys())
 
@@ -371,7 +313,7 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
 
     # Train the model
     if hebbian_learning:
-        HL = Hebbian_Learning()
+        HL = None #Hebbian_Learning()
     else:
         HL = None
 
@@ -410,7 +352,7 @@ if __name__ == '__main__':
     dictionary = {'Hidden Neurons': 0, 'Epoch': 0, 'Parameters': 0, 'Train Loss': 0,
                   'Train Accuracy': 0, 'Test Loss': 0, 'Test Accuracy': 0}
 
-    with open("person.csv", "w", newline="") as fp:
+    with open(dictionary_path, "a", newline="") as fp:
         # Create a writer object
         writer = csv.DictWriter(fp, fieldnames=dictionary.keys())
 
