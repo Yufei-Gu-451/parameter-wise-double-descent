@@ -5,7 +5,7 @@ import math
 
 epochs = 4000
 
-directory = 'assets/MNIST/sub-set/epoch=%d-noise-0-tsne' % epochs
+directory = 'assets/MNIST/sub-set/epoch=%d-noise-5' % epochs
 plots_directory = os.path.join(directory, 'plots')
 input_file = os.path.join(directory, 'epoch=%d.txt' % epochs)
 
