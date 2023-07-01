@@ -46,10 +46,20 @@ with open(dictionary_path, "r", newline="") as infile:
 
         n += 1
 
+hidden_units = np.flipud(np.array(hidden_units))
+parameters = np.flipud(np.array(parameters))
+epochs = np.array(epochs)
+train_losses = np.flipud(np.array(train_losses))
+train_accs = np.flipud(np.array(train_accs))
+test_losses = np.flipud(np.array(test_losses))
+test_accs = np.flipud(np.array(test_accs))
+
+print(hidden_units)
+
 # Creating figure
-fig = plt.figure(figsize=(14, 9))
+fig = plt.figure(figsize=(30, 20))
 ax = plt.axes(projection='3d')
 
-ax.plot_wireframe(np.array(epochs), np.array(hidden_units), np.array(test_losses))
+ax.plot_wireframe(hidden_units, epochs, test_losses, color='orange')
 
 plt.savefig(os.path.join(plots_path, 'Test_Loss-Hidden_Neurons.png'))
