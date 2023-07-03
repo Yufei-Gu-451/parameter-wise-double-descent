@@ -1,14 +1,14 @@
 import matplotlib.pyplot as plt
-from mpl_toolkits import mplot3d
+from matplotlib import cm
 import numpy as np
 import csv
 import os
 
-n_epochs = 4000
+n_epochs = 2000
 label_noise_ratio = 0.2
 gap = 50
 
-directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d" % (n_epochs, label_noise_ratio)
+directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d" % (n_epochs, label_noise_ratio * 100)
 
 dictionary_path = os.path.join(directory, "dictionary.csv")
 plots_path = os.path.join(directory, 'plots')
@@ -26,6 +26,9 @@ with open(dictionary_path, "r", newline="") as infile:
 
     i = -1
     for row in reader:
+        #if row['Hidden Neurons'] == '90':
+        #    break
+
         if i == -1 or n == n_epochs // gap:
             hidden_units.append([])
             parameters.append([])
@@ -60,6 +63,10 @@ print(hidden_units)
 fig = plt.figure(figsize=(30, 20))
 ax = plt.axes(projection='3d')
 
-ax.plot_wireframe(hidden_units, epochs, test_losses, color='orange')
+scale_function = (lambda x: pow(x, 0.25), lambda x: pow(x, 4))
+my_col = cm.jet(test_accs/np.amin(test_accs))
 
-plt.savefig(os.path.join(plots_path, 'Test_Loss-Hidden_Neurons.png'))
+ax.plot_surface(hidden_units, epochs, test_losses, cmap=cm.coolwarm,
+                       linewidth=0, antialiased=False)
+
+plt.savefig(os.path.join(plots_path, 'Test_Accuracy-Hidden_Neurons.png'))

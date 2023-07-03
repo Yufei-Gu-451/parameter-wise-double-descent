@@ -15,15 +15,15 @@ import os
 
 
 # Training Settings
-hidden_units = [6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200, 400, 600, 800, 1000]
+hidden_units = [20, 1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200, 400, 600, 800, 1000]
 
 sample_size = 4000
-batch_size = 128
+batch_size = 64
 label_noise_ratio = 0.2
 
-n_epochs = 4000
+n_epochs = 2000
 learning_rate_decay = True
-learning_rate = 0.1
+learning_rate = 0.05
 
 weight_reuse = False
 tSNE_Visualization = False
@@ -31,7 +31,7 @@ save_model = False
 hebbian_learning = False
 hebbian_learning_rate = 1
 
-directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d" % (n_epochs, label_noise_ratio)
+directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d" % (n_epochs, label_noise_ratio * 100)
 
 dictionary_path = os.path.join(directory, "dictionary.csv")
 tsne_path = os.path.join(directory, "t-SNE")
@@ -67,32 +67,21 @@ def get_train_and_test_dataloader():
 
     if label_noise_ratio > 0:
         label_noise_transform = transforms.Lambda(lambda y: torch.tensor(np.random.randint(0, 10)))
-        num_samples = len(train_dataset)
-        num_noisy_samples = int(label_noise_ratio * num_samples)
+        num_noisy_samples = int(label_noise_ratio * len(train_dataset))
 
-        noisy_indices = np.random.choice(num_samples, num_noisy_samples, replace=False)
+        noisy_indices = np.random.choice(len(train_dataset), num_noisy_samples, replace=False)
         for idx in noisy_indices:
             train_dataset.targets[idx] = label_noise_transform(train_dataset.targets[idx])
 
+        print("%d Label Noise added to Train Data;\n" % (label_noise_ratio * 100))
+
     train_dataset = torch.utils.data.Subset(train_dataset, indices=np.arange(sample_size))
 
-    train_dataloader = DataLoaderX(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=False)
-
-    '''
-    for images, targets in trainloader:
-        for i in range(18):
-            plt.subplot(3, 6, i + 1)
-            plt.imshow(images[i][0], cmap='gray')
-        plt.savefig('Label Noise Data.png')
-        print(targets[:6])
-        print(targets[6:12])
-        print(targets[12:18])
-        break
-    '''
+    train_dataloader = DataLoaderX(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True)
 
     test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transform_test)
 
-    test_dataloader = DataLoaderX(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=False)
+    test_dataloader = DataLoaderX(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=True)
 
     print('Load MINST dataset success;')
     return train_dataloader, test_dataloader
@@ -112,12 +101,12 @@ class Simple_FC(nn.Module):
             nn.ReLU()
         )
 
-        if hebbian_learning:
-            self.features.requires_grad_(False)
+        # if hebbian_learning: self.features.requires_grad_(False)
 
         # self.dropout = nn.Dropout(0.6)
+
         self.classifier = nn.Linear(n_hidden, 10)
-        self.softmax = nn.Softmax(dim=1)
+        #self.softmax = nn.Softmax(dim=1)
 
     def get_n_hidden_neuron(self):
         return self.n_hidden_neuron
@@ -129,7 +118,7 @@ class Simple_FC(nn.Module):
 
     def forward_half2(self, x):
         out = self.classifier(x)
-        out = self.softmax(out)
+        #out = self.softmax(out)
         return out
 
     def forward(self, x, path='all'):
@@ -144,6 +133,7 @@ class Simple_FC(nn.Module):
             raise NotImplementedError
 
         return x
+
 
 def load_model_from_checkpoint(model, hidden_unit):
     print(' Weight Reuse: Use previous checkpoints to initialize the weights:')
@@ -165,12 +155,12 @@ def load_model_from_checkpoint(model, hidden_unit):
 
     return model
 
+
 # Set the neural network model to be used
 def get_model(hidden_unit, device):
     model = Simple_FC(hidden_unit)
     model = model.to(device)
 
-    '''
     if hidden_unit == 1:
         torch.nn.init.xavier_uniform_(model.features[1].weight, gain=1.0)
         torch.nn.init.xavier_uniform_(model.classifier.weight, gain=1.0)
@@ -180,10 +170,6 @@ def get_model(hidden_unit, device):
 
         if weight_reuse:
             model = load_model_from_checkpoint(model, hidden_unit)
-    '''
-
-    nn.init.kaiming_uniform_(model.features[1].weight, mode='fan_in', nonlinearity='relu')
-    nn.init.kaiming_uniform_(model.classifier.weight, mode='fan_in', nonlinearity='relu')
 
     print("Model with %d hidden neurons successfully generated;" % hidden_unit)
 
@@ -196,7 +182,7 @@ def get_model(hidden_unit, device):
 
 
 # Model Training
-def train(train_dataloader, model, optimizer, criterion, HL=None):
+def train(train_dataloader, model, optimizer, criterion):
     model.train()
     cumulative_loss, correct, total = 0.0, 0, 0
 
@@ -211,9 +197,6 @@ def train(train_dataloader, model, optimizer, criterion, HL=None):
         loss.backward()
         optimizer.step()
 
-        #if hebbian_learning:
-        #    model, HL = hebbian_train(model, inputs, HL)
-
         cumulative_loss += loss.item()
         _, predicted = outputs.max(1)
         total += labels.size(0)
@@ -222,7 +205,7 @@ def train(train_dataloader, model, optimizer, criterion, HL=None):
     train_loss = cumulative_loss / len(train_dataloader)
     train_acc = correct / total
 
-    return model, train_loss, train_acc, HL
+    return model, train_loss, train_acc
 
 
 # Model testing
@@ -306,19 +289,13 @@ def status_save(hidden_unit, epoch, parameters, train_loss, train_acc, test_loss
 
 
 # Train and Evalute the model
-def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterion, hidden_unit):
+def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterion):
     train_loss, train_acc, test_loss, test_acc, epoch = 0.0, 0.0, 0.0, 0.0, 0
     parameters = sum(p.numel() for p in model.parameters())
+    hidden_unit = model.get_n_hidden_neuron()
 
-    # Train the model
-    if hebbian_learning:
-        HL = None #Hebbian_Learning()
-    else:
-        HL = None
-
-    # Stops the training within the pre-set epoch size or when the model fits the training set (99%)
     for epoch in range(1, n_epochs + 1):
-        model, train_loss, train_acc, HL = train(trainloader, model, optimizer, criterion, HL)
+        model, train_loss, train_acc = train(trainloader, model, optimizer, criterion)
         print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f" % (epoch, train_loss, train_acc))
 
         if epoch % 50 == 0:
@@ -337,25 +314,21 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
     if save_model:
         model_save(model, test_acc, epoch)
 
-    return train_loss, train_acc, test_loss, test_acc
+    return
 
 
 if __name__ == '__main__':
     # Initialization
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    torch.backends.cudnn.benchmark = True
     print('Using device : ', torch.cuda.get_device_name(0))
     print(torch.cuda.get_device_capability(0))
 
-    torch.backends.cudnn.benchmark = True
-
+    # Initialize Status Dictionary
     dictionary = {'Hidden Neurons': 0, 'Epoch': 0, 'Parameters': 0, 'Train Loss': 0,
                   'Train Accuracy': 0, 'Test Loss': 0, 'Test Accuracy': 0}
-
     with open(dictionary_path, "a", newline="") as fp:
-        # Create a writer object
         writer = csv.DictWriter(fp, fieldnames=dictionary.keys())
-
-        # Write the header row
         writer.writeheader()
 
     # Get the training and testing data of specific sample size
@@ -365,7 +338,6 @@ if __name__ == '__main__':
     for hidden_unit in hidden_units:
         # Generate the model with specific number of hidden_unit
         model = get_model(hidden_unit, device)
-        parameters = sum(p.numel() for p in model.parameters())
 
         # Set the optimizer and criterion 
         optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
@@ -373,5 +345,4 @@ if __name__ == '__main__':
         criterion = criterion.to(device)
 
         # Train and evaluate the model
-        train_loss, train_acc, test_loss, test_acc = train_and_evaluate_model(train_dataloader, test_dataloader,
-                                                                              model, optimizer, criterion, hidden_unit)
+        train_and_evaluate_model(train_dataloader, test_dataloader, model, optimizer, criterion)
