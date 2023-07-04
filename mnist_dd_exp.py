@@ -15,7 +15,7 @@ import os
 
 
 # Training Settings
-hidden_units = [20, 1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 120, 150, 200, 400, 600, 800, 1000]
+hidden_units = [10]
 
 sample_size = 4000
 batch_size = 64
@@ -31,7 +31,7 @@ save_model = False
 hebbian_learning = False
 hebbian_learning_rate = 1
 
-directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d" % (n_epochs, label_noise_ratio * 100)
+directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d-depth" % (n_epochs, label_noise_ratio * 100)
 
 dictionary_path = os.path.join(directory, "dictionary.csv")
 tsne_path = os.path.join(directory, "t-SNE")
@@ -98,6 +98,10 @@ class Simple_FC(nn.Module):
         self.features = nn.Sequential(
             nn.Flatten(),
             nn.Linear(784, n_hidden),
+            nn.Linear(n_hidden, n_hidden),
+            nn.Linear(n_hidden, n_hidden),
+            nn.Linear(n_hidden, n_hidden),
+            nn.Linear(n_hidden, n_hidden),
             nn.ReLU()
         )
 
@@ -276,7 +280,7 @@ def model_save(model, epoch, test_accuracy):
 
 
 def status_save(hidden_unit, epoch, parameters, train_loss, train_acc, test_loss, test_acc):
-    dictionary = {'Hidden Neurons': hidden_unit, 'Epoch': epoch, 'Parameters': parameters, 'Train Loss': train_loss,
+    dictionary = {'Hidden Neurons': 50, 'Epoch': epoch, 'Parameters': parameters, 'Train Loss': train_loss,
                   'Train Accuracy': train_acc, 'Test Loss': test_loss, 'Test Accuracy': test_acc}
 
     with open(dictionary_path, "a", newline="") as fp:
