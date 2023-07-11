@@ -3,6 +3,7 @@ import torch.nn as nn
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
 from prefetch_generator import BackgroundGenerator
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
@@ -15,7 +16,8 @@ import os
 
 
 # Training Settings
-hidden_units = [10]
+hidden_units = [1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100,
+                120, 150, 200, 400, 600, 800, 1000]
 
 sample_size = 4000
 batch_size = 64
@@ -27,11 +29,11 @@ learning_rate = 0.05
 
 weight_reuse = False
 tSNE_Visualization = False
-save_model = False
+save_model = True
 hebbian_learning = False
 hebbian_learning_rate = 1
 
-directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d-depth" % (n_epochs, label_noise_ratio * 100)
+directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d-model" % (n_epochs, label_noise_ratio * 100)
 
 dictionary_path = os.path.join(directory, "dictionary.csv")
 tsne_path = os.path.join(directory, "t-SNE")
@@ -44,6 +46,12 @@ if tSNE_Visualization and not os.path.isdir(tsne_path):
 if save_model and not os.path.isdir(checkpoint_path):
     os.mkdir(checkpoint_path)
 
+# Initialization
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+torch.backends.cudnn.benchmark = True
+print('Using device : ', torch.cuda.get_device_name(0))
+print(torch.cuda.get_device_capability(0))
+
 
 # ------------------------------------------------------------------------------------------
 
@@ -51,6 +59,30 @@ if save_model and not os.path.isdir(checkpoint_path):
 class DataLoaderX(DataLoader):
     def __iter__(self):
         return BackgroundGenerator(super().__iter__())
+
+
+class ListDataset(Dataset):
+    def __init__(self, data_list):
+        self.data_list = data_list
+        self.data = []
+        self.targets = []
+
+        for i in range(len(data_list)):
+            self.data.append(data_list[i][0])
+            self.targets.append(data_list[i][1])
+
+    def __len__(self):
+        return len(self.data_list)
+
+    def __getitem__(self, index):
+        return self.data_list[index]
+
+    def get_list(self):
+        list = []
+        for i in range(self.__len__()):
+            list.append([self.data[i], int(self.targets[i])])
+
+        return list
 
 
 # Return the train_dataloader and test_dataloader of MINST
@@ -63,19 +95,29 @@ def get_train_and_test_dataloader():
         transforms.ToTensor(),
     ])
 
+    '''
     train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform_train)
-
-    if label_noise_ratio > 0:
-        label_noise_transform = transforms.Lambda(lambda y: torch.tensor(np.random.randint(0, 10)))
-        num_noisy_samples = int(label_noise_ratio * len(train_dataset))
-
-        noisy_indices = np.random.choice(len(train_dataset), num_noisy_samples, replace=False)
-        for idx in noisy_indices:
-            train_dataset.targets[idx] = label_noise_transform(train_dataset.targets[idx])
-
-        print("%d Label Noise added to Train Data;\n" % (label_noise_ratio * 100))
-
     train_dataset = torch.utils.data.Subset(train_dataset, indices=np.arange(sample_size))
+    torch.save(list(train_dataset), 'data/MNIST/subset.pth')
+    '''
+
+    '''
+    train_dataset_2_list = torch.load('data/MNIST/subset.pth')
+    train_dataset_2 = ListDataset(train_dataset_2_list)
+
+    label_noise_transform = transforms.Lambda(lambda y: torch.tensor(np.random.randint(0, 10)))
+    num_noisy_samples = int(label_noise_ratio * len(train_dataset_2))
+
+    noisy_indices = np.random.choice(len(train_dataset_2), num_noisy_samples, replace=False)
+    for idx in noisy_indices:
+        train_dataset_2.targets[idx] = label_noise_transform(train_dataset_2.targets[idx])
+
+    print("%d Label Noise added to Train Data;\n" % (label_noise_ratio * 100))
+
+    torch.save(train_dataset_2.get_list(), 'data/MNIST/subset-noise-20%.pth')
+    '''
+
+    train_dataset = torch.load('data/MNIST/subset-noise-20%.pth')
 
     train_dataloader = DataLoaderX(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True)
 
@@ -84,6 +126,7 @@ def get_train_and_test_dataloader():
     test_dataloader = DataLoaderX(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=True)
 
     print('Load MINST dataset success;')
+
     return train_dataloader, test_dataloader
 
 
@@ -98,10 +141,6 @@ class Simple_FC(nn.Module):
         self.features = nn.Sequential(
             nn.Flatten(),
             nn.Linear(784, n_hidden),
-            nn.Linear(n_hidden, n_hidden),
-            nn.Linear(n_hidden, n_hidden),
-            nn.Linear(n_hidden, n_hidden),
-            nn.Linear(n_hidden, n_hidden),
             nn.ReLU()
         )
 
@@ -213,7 +252,7 @@ def train(train_dataloader, model, optimizer, criterion):
 
 
 # Model testing
-def test(test_dataloader):
+def test(model, test_dataloader):
     model.eval()
     cumulative_loss, correct, total = 0.0, 0, 0
 
@@ -280,7 +319,7 @@ def model_save(model, epoch, test_accuracy):
 
 
 def status_save(hidden_unit, epoch, parameters, train_loss, train_acc, test_loss, test_acc):
-    dictionary = {'Hidden Neurons': 50, 'Epoch': epoch, 'Parameters': parameters, 'Train Loss': train_loss,
+    dictionary = {'Hidden Neurons': hidden_unit, 'Epoch': epoch, 'Parameters': parameters, 'Train Loss': train_loss,
                   'Train Accuracy': train_acc, 'Test Loss': test_loss, 'Test Accuracy': test_acc}
 
     with open(dictionary_path, "a", newline="") as fp:
@@ -303,7 +342,7 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
         print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f" % (epoch, train_loss, train_acc))
 
         if epoch % 50 == 0:
-            test_loss, test_acc = test(testloader)
+            test_loss, test_acc = test(model, testloader)
             status_save(hidden_unit, epoch, parameters, train_loss, train_acc, test_loss, test_acc)
             print("Hidden Neurons : %d ; Parameters : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; "
                   "Test Acc : %.3f\n" % (hidden_unit, parameters, train_loss, train_acc, test_loss, test_acc))
@@ -322,12 +361,6 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
 
 
 if __name__ == '__main__':
-    # Initialization
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    torch.backends.cudnn.benchmark = True
-    print('Using device : ', torch.cuda.get_device_name(0))
-    print(torch.cuda.get_device_capability(0))
-
     # Initialize Status Dictionary
     dictionary = {'Hidden Neurons': 0, 'Epoch': 0, 'Parameters': 0, 'Train Loss': 0,
                   'Train Accuracy': 0, 'Test Loss': 0, 'Test Accuracy': 0}
@@ -343,7 +376,7 @@ if __name__ == '__main__':
         # Generate the model with specific number of hidden_unit
         model = get_model(hidden_unit, device)
 
-        # Set the optimizer and criterion 
+        # Set the optimizer and criterion
         optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
         criterion = torch.nn.CrossEntropyLoss()
         criterion = criterion.to(device)

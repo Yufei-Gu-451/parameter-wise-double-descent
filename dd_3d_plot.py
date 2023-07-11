@@ -8,7 +8,7 @@ n_epochs = 2000
 label_noise_ratio = 0.2
 gap = 50
 
-directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d" % (n_epochs, label_noise_ratio * 100)
+directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d-model" % (n_epochs, label_noise_ratio * 100)
 
 dictionary_path = os.path.join(directory, "dictionary.csv")
 plots_path = os.path.join(directory, 'plots')
