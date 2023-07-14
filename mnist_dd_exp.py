@@ -156,7 +156,6 @@ class Simple_FC(nn.Module):
 
     def forward_half2(self, x):
         out = self.classifier(x)
-        #out = self.softmax(out)
         return out
 
     def forward(self, x, path='all'):
@@ -310,7 +309,7 @@ def model_save(model, epoch, test_accuracy):
         'epoch': epoch,
     }
     torch.save(state, os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % hidden_unit))
-    print("Torch saved successfully！")
+    print("Torch saved successfully!")
 
 
 def status_save(hidden_unit, epoch, parameters, train_loss, train_acc, test_loss, test_acc):

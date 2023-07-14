@@ -23,12 +23,24 @@ n_epochs = 2000
 batch_size = 64
 label_noise_ratio = 0.2
 
-directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d-model" % (n_epochs, label_noise_ratio * 100)
+TEST_NUMBER = 0
+
+directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d-model-%d" % (n_epochs, label_noise_ratio * 100, TEST_NUMBER)
+dataset_path = "data/MNIST/Test-%d" % TEST_NUMBER
 
 dictionary_path = os.path.join(directory, "dictionary.csv")
 checkpoint_path = os.path.join(directory, "ckpt")
 plots_path = os.path.join(directory, "plots")
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+def load_dataset():
+    org_train_dataset = torch.load(os.path.join(dataset_path, 'subset-clean.pth'))
+    noisy_train_dataset = torch.load(os.path.join(dataset_path, 'subset-noise-20%.pth'))
+
+    assert (len(org_train_dataset) == len(noisy_train_dataset))
+
+    return org_train_dataset, noisy_train_dataset
 
 def load_model(hidden_unit):
     model = mnist_dd_exp.Simple_FC(hidden_unit)
@@ -43,10 +55,6 @@ def add_gaussian_noise(image, mean, std_dev):
     noisy_image = image + noise
     return noisy_image.astype(np.float32)
 
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-
 def decomposition_by_SVD(mat, k):
     # Singular Value Decomposition (SVD)
     U, S, V = np.linalg.svd(mat)
@@ -55,9 +63,6 @@ def decomposition_by_SVD(mat, k):
     Uk = U[:, :k]
     Sk = np.diag(S[0:k])
     Vk = V[:k, :]
-
-    # print(mat.shape, U.shape, S.shape, V.shape)
-    # print(Uk.shape, Sk.shape, Vk.shape)
 
     # recover the image
     imgMat_new = Uk @ Sk @ Vk
@@ -97,6 +102,9 @@ def get_parameters():
         return parameters
 
 def get_clean_noisy_dataloader():
+    # Load the two dataset
+    org_train_dataset, noisy_train_dataset = load_dataset()
+
     # Spilt the Training set to the ones with clean labels and the ones with random (noisy) labels
     clean_label_list, noisy_label_list = [], []
 
@@ -151,7 +159,7 @@ def get_hidden_features(model, dataloader):
 
 
 
-def knn_prediction_test(d, k):
+def knn_prediction_test(k):
     clean_label_dataloader, noisy_label_dataloader = get_clean_noisy_dataloader()
 
     accuracy_list = []
@@ -197,9 +205,8 @@ def knn_prediction_test(d, k):
     plt.legend()
     plt.xlabel('Number of Hidden Neurons (N)')
     plt.ylabel('Accuracy / Cross Entropy Loss')
-    plt.title('KNN Feature Extraction Test')
-    plt.savefig(os.path.join(plots_path, 'KNN Feature Extraction Test.png'))
-
+    plt.title('%d-KNN Feature Extraction Test' % k)
+    plt.savefig(os.path.join(plots_path, '%d-NN Feature Extraction Test.png' % k))
 
 
 def class_center_distance_test(d):
@@ -216,12 +223,11 @@ def class_center_distance_test(d):
         data, hidden_features, predicts, true_labels = get_hidden_features(model, clean_label_dataloader)
 
         # Perform SVD Decomposition to extract features
-        if n > d:
-            hidden_features = decomposition_by_SVD(hidden_features, d)
+        # if n > d:
+        #     hidden_features = decomposition_by_SVD(hidden_features, d)
 
         # Find the center for each class
         class_centers = []
-
         for cls in range(10):
             class_data = hidden_features[(true_labels == cls).flatten()]  # Subset of data points belonging to the class
             if len(class_data) == 0:
@@ -240,15 +246,14 @@ def class_center_distance_test(d):
             distance.append(cosine_distance)
 
         print(n, sum(distance) / len(distance))
-
         mean_distance_to_classfier_centers.append(sum(distance) / len(distance))
 
 
         # Obtain the hidden features of the noisy data set
         data_2, hidden_features_2, predicts_2, true_labels_2 = get_hidden_features(model, noisy_label_dataloader)
 
-        if n > d:
-            hidden_features_2 = decomposition_by_SVD(hidden_features_2, d)
+        # if n > d:
+        #     hidden_features_2 = decomposition_by_SVD(hidden_features_2, d)
 
         # Compute average distance of hidden features of random labelled training images to the 10 centers
         distance_2 = []
@@ -260,33 +265,29 @@ def class_center_distance_test(d):
             distance_2.append(cosine_distance)
 
         print(n, sum(distance_2) / len(distance_2), '\n')
-
         mean_distance_to_classfier_centers_2.append(sum(distance_2) / len(distance_2))
 
-
-    # Get Parameters and Test Losses
-    parameters = get_parameters()
-    # test_losses = get_test_losses()
 
     # Plot the Diagram
     plt.figure(figsize=(10, 7))
     ax = plt.axes()
     scale_function = (lambda x: x ** (1 / 4), lambda x: x ** 4)
     ax.set_xscale('function', functions=scale_function)
-    plt.plot(parameters, mean_distance_to_classfier_centers, marker='o',
+    plt.plot(hidden_units, mean_distance_to_classfier_centers, marker='o',
              label='Average Distance from class centers - Clean')
-    plt.plot(parameters, mean_distance_to_classfier_centers_2, marker='o',
+    plt.plot(hidden_units, mean_distance_to_classfier_centers_2, marker='o',
                  label='Average Distance from class centers - Noisy')
-    # plt.plot(parameters, test_losses, marker='o', label='Generalization')
     plt.xticks([0, 5, 15, 40, 100, 200, 400, 800])
     plt.legend()
     plt.xlabel('Number of Parameters (* 10^3)')
     plt.ylabel('Cosine Distance')
-    plt.title('KNN Feature Extraction Test')
-    plt.savefig(os.path.join(plots_path, 'KNN Feature Extraction Test.png'))
+    plt.title('Class Center Distance Test')
+    plt.savefig(os.path.join(plots_path, 'Class Center Distance Test.png'))
 
 
-def label_noise_pertubation_test(org_train_dataset, noisy_train_dataset, gaussian_mean, gaussian_std_dev):
+def label_noise_pertubation_test(gaussian_mean, gaussian_std_dev):
+    org_train_dataset, noisy_train_dataset = load_dataset()
+
     test_dataset_list = []
 
     for i in range(len(org_train_dataset)):
@@ -336,13 +337,9 @@ def label_noise_pertubation_test(org_train_dataset, noisy_train_dataset, gaussia
     plt.savefig(os.path.join(plots_path, 'Pertubated Data Test - %lf.png' % gaussian_std_dev))
 
 if __name__ == '__main__':
-    org_train_dataset = torch.load('data/MNIST/subset.pth')
-    noisy_train_dataset = torch.load('data/MNIST/subset-noise-20%.pth')
-
-    assert(len(org_train_dataset) == len(noisy_train_dataset))
-
-    # label_noise_pertubation_test(org_train_dataset, noisy_train_dataset, 0, 0)
+    for std_dev in [0.0, 0.1, 0.2, 0.3, 0.4, 0.6, 0.8, 1.0]:
+        label_noise_pertubation_test(0, 0)
 
     # class_center_distance_test(5)
 
-    knn_prediction_test(20, 5)
+    knn_prediction_test(5)
