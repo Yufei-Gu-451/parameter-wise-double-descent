@@ -30,10 +30,11 @@ learning_rate = 0.05
 weight_reuse = False
 tSNE_Visualization = False
 save_model = True
-hebbian_learning = False
-hebbian_learning_rate = 1
 
-directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d-model" % (n_epochs, label_noise_ratio * 100)
+TEST_NUMBER = 0
+
+directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d-model-%d" % (n_epochs, label_noise_ratio * 100, TEST_NUMBER)
+dataset_path = "data/MNIST/Test-%d" % TEST_NUMBER
 
 dictionary_path = os.path.join(directory, "dictionary.csv")
 tsne_path = os.path.join(directory, "t-SNE")
@@ -41,6 +42,8 @@ checkpoint_path = os.path.join(directory, "ckpt")
 
 if not os.path.isdir(directory):
     os.mkdir(directory)
+if not os.path.isdir(dataset_path):
+    os.mkdir(dataset_path)
 if tSNE_Visualization and not os.path.isdir(tsne_path):
     os.mkdir(tsne_path)
 if save_model and not os.path.isdir(checkpoint_path):
@@ -59,7 +62,6 @@ print(torch.cuda.get_device_capability(0))
 class DataLoaderX(DataLoader):
     def __iter__(self):
         return BackgroundGenerator(super().__iter__())
-
 
 class ListDataset(Dataset):
     def __init__(self, data_list):
@@ -85,24 +87,16 @@ class ListDataset(Dataset):
         return list
 
 
-# Return the train_dataloader and test_dataloader of MINST
-def get_train_and_test_dataloader():
+def create_training_set():
     transform_train = transforms.Compose([
         transforms.ToTensor(),
     ])
 
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-    ])
-
-    '''
     train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform_train)
     train_dataset = torch.utils.data.Subset(train_dataset, indices=np.arange(sample_size))
-    torch.save(list(train_dataset), 'data/MNIST/subset.pth')
-    '''
+    torch.save(list(train_dataset), os.path.join(dataset_path, 'subset-clean.pth'))
 
-    '''
-    train_dataset_2_list = torch.load('data/MNIST/subset.pth')
+    train_dataset_2_list = torch.load(os.path.join(dataset_path, 'subset-clean.pth'))
     train_dataset_2 = ListDataset(train_dataset_2_list)
 
     label_noise_transform = transforms.Lambda(lambda y: torch.tensor(np.random.randint(0, 10)))
@@ -114,10 +108,16 @@ def get_train_and_test_dataloader():
 
     print("%d Label Noise added to Train Data;\n" % (label_noise_ratio * 100))
 
-    torch.save(train_dataset_2.get_list(), 'data/MNIST/subset-noise-20%.pth')
-    '''
+    torch.save(train_dataset_2.get_list(), os.path.join(dataset_path, 'subset-noise-20%.pth'))
 
-    train_dataset = torch.load('data/MNIST/subset-noise-20%.pth')
+
+# Return the train_dataloader and test_dataloader of MINST
+def get_train_and_test_dataloader():
+    transform_test = transforms.Compose([
+        transforms.ToTensor(),
+    ])
+
+    train_dataset = torch.load(os.path.join(dataset_path, 'subset-noise-20%.pth'))
 
     train_dataloader = DataLoaderX(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True)
 
@@ -144,12 +144,7 @@ class Simple_FC(nn.Module):
             nn.ReLU()
         )
 
-        # if hebbian_learning: self.features.requires_grad_(False)
-
-        # self.dropout = nn.Dropout(0.6)
-
         self.classifier = nn.Linear(n_hidden, 10)
-        #self.softmax = nn.Softmax(dim=1)
 
     def get_n_hidden_neuron(self):
         return self.n_hidden_neuron
@@ -341,7 +336,7 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
         model, train_loss, train_acc = train(trainloader, model, optimizer, criterion)
         print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f" % (epoch, train_loss, train_acc))
 
-        if epoch % 50 == 0:
+        if epoch % 100 == 0:
             test_loss, test_acc = test(model, testloader)
             status_save(hidden_unit, epoch, parameters, train_loss, train_acc, test_loss, test_acc)
             print("Hidden Neurons : %d ; Parameters : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; "
@@ -364,9 +359,13 @@ if __name__ == '__main__':
     # Initialize Status Dictionary
     dictionary = {'Hidden Neurons': 0, 'Epoch': 0, 'Parameters': 0, 'Train Loss': 0,
                   'Train Accuracy': 0, 'Test Loss': 0, 'Test Accuracy': 0}
+
     with open(dictionary_path, "a", newline="") as fp:
         writer = csv.DictWriter(fp, fieldnames=dictionary.keys())
         writer.writeheader()
+
+    # Create the training dataset
+    create_training_set()
 
     # Get the training and testing data of specific sample size
     train_dataloader, test_dataloader = get_train_and_test_dataloader()

@@ -19,7 +19,6 @@ if not os.path.isdir(plots_path):
 index, hidden_units, parameters, epochs = [], [], [], []
 train_losses, train_accs, test_losses, test_accs = [], [], [], []
 
-# Open a csv file for writing
 with open(dictionary_path, "r", newline="") as infile:
     # Create a reader object
     reader = csv.DictReader(infile)
