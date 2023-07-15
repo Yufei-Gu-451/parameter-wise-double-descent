@@ -32,6 +32,9 @@ dictionary_path = os.path.join(directory, "dictionary.csv")
 checkpoint_path = os.path.join(directory, "ckpt")
 plots_path = os.path.join(directory, "plots")
 
+if not os.path.isdir(plots_path):
+    os.mkdir(plots_path)
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def load_dataset():
@@ -338,8 +341,10 @@ def label_noise_pertubation_test(gaussian_mean, gaussian_std_dev):
 
 if __name__ == '__main__':
     for std_dev in [0.0, 0.1, 0.2, 0.3, 0.4, 0.6, 0.8, 1.0]:
-        label_noise_pertubation_test(0, 0)
+        label_noise_pertubation_test(0, std_dev)
 
     # class_center_distance_test(5)
 
+    knn_prediction_test(1)
     knn_prediction_test(5)
+    knn_prediction_test(10)
