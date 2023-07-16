@@ -23,7 +23,7 @@ sample_size = 4000
 batch_size = 64
 label_noise_ratio = 0.2
 
-n_epochs = 2000
+n_epochs = 4000
 learning_rate_decay = True
 learning_rate = 0.05
 
@@ -31,7 +31,7 @@ weight_reuse = False
 tSNE_Visualization = False
 save_model = True
 
-TEST_NUMBER = 9
+TEST_NUMBER = 4
 
 directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d-model-%d" % (n_epochs, label_noise_ratio * 100, TEST_NUMBER)
 dataset_path = "data/MNIST/Test-%d" % TEST_NUMBER
