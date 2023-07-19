@@ -31,7 +31,7 @@ weight_reuse = False
 tSNE_Visualization = False
 save_model = True
 
-TEST_NUMBER = 0
+TEST_NUMBER = 5
 
 directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d-model-%d" % (n_epochs, label_noise_ratio * 100, TEST_NUMBER)
 dataset_path = "data/MNIST/Test-%d" % TEST_NUMBER

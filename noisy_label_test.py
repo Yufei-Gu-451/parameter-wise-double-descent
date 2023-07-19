@@ -19,39 +19,12 @@ hidden_units = [1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 5
                 120, 150, 200, 400, 600, 800, 1000]
 
 sample_size = 4000
-n_epochs = 2000
+n_epochs = 4000
 batch_size = 64
 label_noise_ratio = 0.2
 
-TEST_NUMBER = 0
-
-directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d-model-%d" % (n_epochs, label_noise_ratio * 100, TEST_NUMBER)
-dataset_path = "data/MNIST/Test-%d" % TEST_NUMBER
-
-dictionary_path = os.path.join(directory, "dictionary.csv")
-checkpoint_path = os.path.join(directory, "ckpt")
-plots_path = os.path.join(directory, "plots")
-
-if not os.path.isdir(plots_path):
-    os.mkdir(plots_path)
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-def load_dataset():
-    org_train_dataset = torch.load(os.path.join(dataset_path, 'subset-clean.pth'))
-    noisy_train_dataset = torch.load(os.path.join(dataset_path, 'subset-noise-20%.pth'))
-
-    assert (len(org_train_dataset) == len(noisy_train_dataset))
-
-    return org_train_dataset, noisy_train_dataset
-
-def load_model(hidden_unit):
-    model = mnist_dd_exp.Simple_FC(hidden_unit)
-
-    checkpoint = torch.load(os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % hidden_unit))
-    model.load_state_dict(checkpoint['net'])
-
-    return model
 
 def add_gaussian_noise(image, mean, std_dev):
     noise = np.random.normal(mean, std_dev, image.shape)
@@ -71,7 +44,7 @@ def decomposition_by_SVD(mat, k):
     imgMat_new = Uk @ Sk @ Vk
     return Uk
 
-def get_test_losses():
+def get_test_losses(dictionary_path):
     with open(dictionary_path, "r", newline="") as infile:
         reader = csv.DictReader(infile)
         test_losses = []
@@ -82,7 +55,7 @@ def get_test_losses():
 
         return test_losses
 
-def get_test_accuracy():
+def get_test_accuracy(dictionary_path):
     with open(dictionary_path, "r", newline="") as infile:
         reader = csv.DictReader(infile)
         test_accuracy = []
@@ -93,7 +66,7 @@ def get_test_accuracy():
 
         return test_accuracy
 
-def get_parameters():
+def get_parameters(dictionary_path):
     with open(dictionary_path, "r", newline="") as infile:
         reader = csv.DictReader(infile)
         parameters = []
@@ -104,9 +77,26 @@ def get_parameters():
 
         return parameters
 
-def get_clean_noisy_dataloader():
+def load_dataset(dataset_path):
+    org_train_dataset = torch.load(os.path.join(dataset_path, 'subset-clean.pth'))
+    noisy_train_dataset = torch.load(os.path.join(dataset_path, 'subset-noise-20%.pth'))
+
+    assert (len(org_train_dataset) == len(noisy_train_dataset))
+
+    return org_train_dataset, noisy_train_dataset
+
+def load_model(checkpoint_path, hidden_unit):
+    model = mnist_dd_exp.Simple_FC(hidden_unit)
+
+    checkpoint = torch.load(os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % hidden_unit))
+    model.load_state_dict(checkpoint['net'])
+
+    return model
+
+
+def get_clean_noisy_dataloader(dataset_path):
     # Load the two dataset
-    org_train_dataset, noisy_train_dataset = load_dataset()
+    org_train_dataset, noisy_train_dataset = load_dataset(dataset_path)
 
     # Spilt the Training set to the ones with clean labels and the ones with random (noisy) labels
     clean_label_list, noisy_label_list = [], []
@@ -163,38 +153,43 @@ def get_hidden_features(model, dataloader):
 
 
 def knn_prediction_test(k):
-    clean_label_dataloader, noisy_label_dataloader = get_clean_noisy_dataloader()
+    accuracy_list, test_accuracy, test_losses = [], [], []
 
-    accuracy_list = []
+    for test_number in range(10):
+        directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d-model-%d" % (
+        n_epochs, label_noise_ratio * 100, test_number)
 
-    for n in hidden_units:
-        # Initialize model with pretrained weights
-        model = load_model(n)
-        model.eval()
+        dataset_path = "data/MNIST/Test-%d" % test_number
+        clean_label_dataloader, noisy_label_dataloader = get_clean_noisy_dataloader(dataset_path)
 
-        # Obtain the hidden features of the clean data set
-        data, hidden_features, predicts, labels = get_hidden_features(model, clean_label_dataloader)
-        data_2, hidden_features_2, predicts_2, labels_2 = get_hidden_features(model, noisy_label_dataloader)
+        accuracy_list.append([])
 
-        # if n > d:
-            # hidden_features = decomposition_by_SVD(hidden_features, d)
-            # hidden_features_2 = decomposition_by_SVD(hidden_features_2, d)
+        for n in hidden_units:
+            # Initialize model with pretrained weights
+            checkpoint_path = os.path.join(directory, "ckpt")
+            model = load_model(checkpoint_path, n)
+            model.eval()
 
-            # pca = sklearn.decomposition.PCA(n_components = d)
-            # hidden_features = pca.fit_transform(hidden_features)
-            # hidden_features_2 = pca.fit_transform(hidden_features_2)
+            # Obtain the hidden features of the clean data set
+            data, hidden_features, predicts, labels = get_hidden_features(model, clean_label_dataloader)
+            data_2, hidden_features_2, predicts_2, labels_2 = get_hidden_features(model, noisy_label_dataloader)
 
-        knn = KNeighborsClassifier(n_neighbors=k, metric='cosine')
-        knn.fit(hidden_features, labels)
+            knn = KNeighborsClassifier(n_neighbors=k, metric='cosine')
+            knn.fit(hidden_features, labels)
 
-        correct = sum(knn.predict(hidden_features_2) == labels_2)
-        print(n, correct)
+            correct = sum(knn.predict(hidden_features_2) == labels_2)
+            print(test_number, n, correct)
 
-        accuracy_list.append(correct / 720)
+            accuracy_list[test_number].append(correct / 720)
 
-    # Get Parameters and Test Losses
-    test_accuracy = get_test_accuracy()
-    test_losses = get_test_losses()
+        # Get Parameters and Test Losses
+        dictionary_path = os.path.join(directory, "dictionary.csv")
+        test_accuracy.append(get_test_accuracy(dictionary_path))
+        test_losses.append(get_test_losses(dictionary_path))
+
+    accuracy_list = np.mean(np.array(accuracy_list), axis=0)
+    test_accuracy = np.mean(np.array(test_accuracy), axis=0)
+    test_losses = np.mean(np.array(test_losses), axis=0)
 
     # Plot the Diagram
     plt.figure(figsize=(10, 7))
@@ -209,9 +204,10 @@ def knn_prediction_test(k):
     plt.xlabel('Number of Hidden Neurons (N)')
     plt.ylabel('Accuracy / Cross Entropy Loss')
     plt.title('%d-KNN Feature Extraction Test' % k)
-    plt.savefig(os.path.join(plots_path, '%d-NN Feature Extraction Test.png' % k))
+    plt.savefig('%d-NN Feature Extraction Test (epoch = 4000).png' % k)
 
 
+'''
 def class_center_distance_test(d):
     clean_label_dataloader, noisy_label_dataloader = get_clean_noisy_dataloader()
 
@@ -338,13 +334,9 @@ def label_noise_pertubation_test(gaussian_mean, gaussian_std_dev):
     plt.ylabel('Accuracy on Pertubated Noisy Data Points')
     plt.title('Gaussian standard deviation = %lf' % gaussian_std_dev)
     plt.savefig(os.path.join(plots_path, 'Pertubated Data Test - %lf.png' % gaussian_std_dev))
+'''
 
 if __name__ == '__main__':
-    for std_dev in [0.0, 0.1, 0.2, 0.3, 0.4, 0.6, 0.8, 1.0]:
-        label_noise_pertubation_test(0, std_dev)
-
-    # class_center_distance_test(5)
-
     knn_prediction_test(1)
     knn_prediction_test(5)
     knn_prediction_test(10)
