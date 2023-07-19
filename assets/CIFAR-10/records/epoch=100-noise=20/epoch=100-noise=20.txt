@@ -1,0 +1,17 @@
+CNN_width : 64 ; Parameters : 1558026 ; Train Loss : 0.001487 ; Train Acc : 1.000 ; Test Loss : 0.967593 ; Test Acc : 0.743
+CNN_width : 60 ; Parameters : 1369930 ; Train Loss : 0.001587 ; Train Acc : 1.000 ; Test Loss : 0.973335 ; Test Acc : 0.743
+CNN_width : 54 ; Parameters : 1110466 ; Train Loss : 0.001702 ; Train Acc : 1.000 ; Test Loss : 1.042591 ; Test Acc : 0.726
+CNN_width : 48 ; Parameters : 878218 ; Train Loss : 0.002044 ; Train Acc : 1.000 ; Test Loss : 1.140895 ; Test Acc : 0.708
+CNN_width : 42 ; Parameters : 673186 ; Train Loss : 0.002231 ; Train Acc : 1.000 ; Test Loss : 1.132144 ; Test Acc : 0.711
+CNN_width : 36 ; Parameters : 495370 ; Train Loss : 0.002767 ; Train Acc : 1.000 ; Test Loss : 1.202517 ; Test Acc : 0.696
+CNN_width : 30 ; Parameters : 344770 ; Train Loss : 0.003639 ; Train Acc : 1.000 ; Test Loss : 1.360818 ; Test Acc : 0.675
+CNN_width : 24 ; Parameters : 221386 ; Train Loss : 0.005412 ; Train Acc : 1.000 ; Test Loss : 1.567979 ; Test Acc : 0.649
+CNN_width : 18 ; Parameters : 125218 ; Train Loss : 0.012584 ; Train Acc : 1.000 ; Test Loss : 2.040461 ; Test Acc : 0.587
+CNN_width : 14 ; Parameters : 76226 ; Train Loss : 0.083758 ; Train Acc : 0.989 ; Test Loss : 2.466335 ; Test Acc : 0.538
+CNN_width : 12 ; Parameters : 56266 ; Train Loss : 0.283702 ; Train Acc : 0.915 ; Test Loss : 2.175702 ; Test Acc : 0.534
+CNN_width : 10 ; Parameters : 39330 ; Train Loss : 0.629989 ; Train Acc : 0.798 ; Test Loss : 1.741201 ; Test Acc : 0.537
+CNN_width : 8 ; Parameters : 25418 ; Train Loss : 0.929689 ; Train Acc : 0.711 ; Test Loss : 1.386383 ; Test Acc : 0.566
+CNN_width : 6 ; Parameters : 14530 ; Train Loss : 1.184497 ; Train Acc : 0.639 ; Test Loss : 1.230866 ; Test Acc : 0.592
+CNN_width : 4 ; Parameters : 6666 ; Train Loss : 1.409878 ; Train Acc : 0.567 ; Test Loss : 1.205867 ; Test Acc : 0.600
+CNN_width : 2 ; Parameters : 1826 ; Train Loss : 1.682728 ; Train Acc : 0.450 ; Test Loss : 1.420024 ; Test Acc : 0.510
+CNN_width : 1 ; Parameters : 540 ; Train Loss : 1.886010 ; Train Acc : 0.350 ; Test Loss : 1.681658 ; Test Acc : 0.408

@@ -13,7 +13,9 @@ import numpy as np
 import csv
 import os
 
-import mnist_dd_exp
+import dd_exp
+import datasets
+import models
 
 hidden_units = [1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100,
                 120, 150, 200, 400, 600, 800, 1000]
@@ -25,6 +27,8 @@ label_noise_ratio = 0.2
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+TEST_GROUP = 1
+TEST_NUMBERS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 def add_gaussian_noise(image, mean, std_dev):
     noise = np.random.normal(mean, std_dev, image.shape)
@@ -51,7 +55,7 @@ def get_test_losses(dictionary_path):
 
         for row in reader:
             if int(row['Epoch']) == n_epochs:
-                test_losses.append(float(row['Test Loss']) / 2)
+                test_losses.append(float(row['Test Loss']))
 
         return test_losses
 
@@ -65,6 +69,17 @@ def get_test_accuracy(dictionary_path):
                 test_accuracy.append(float(row['Test Accuracy']))
 
         return test_accuracy
+
+def get_train_accuracy(dictionary_path):
+    with open(dictionary_path, "r", newline="") as infile:
+        reader = csv.DictReader(infile)
+        train_accuracy = []
+
+        for row in reader:
+            if int(row['Epoch']) == n_epochs:
+                train_accuracy.append(float(row['Train Accuracy']))
+
+        return train_accuracy
 
 def get_parameters(dictionary_path):
     with open(dictionary_path, "r", newline="") as infile:
@@ -86,7 +101,7 @@ def load_dataset(dataset_path):
     return org_train_dataset, noisy_train_dataset
 
 def load_model(checkpoint_path, hidden_unit):
-    model = mnist_dd_exp.Simple_FC(hidden_unit)
+    model = models.Simple_FC(hidden_unit)
 
     checkpoint = torch.load(os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % hidden_unit))
     model.load_state_dict(checkpoint['net'])
@@ -109,12 +124,12 @@ def get_clean_noisy_dataloader(dataset_path):
         else:
             clean_label_list.append((data, org_train_dataset[i][1]))
 
-    clean_label_dataset = mnist_dd_exp.ListDataset(clean_label_list)
-    noisy_label_dataset = mnist_dd_exp.ListDataset(noisy_label_list)
+    clean_label_dataset = datasets.ListDataset(clean_label_list)
+    noisy_label_dataset = datasets.ListDataset(noisy_label_list)
 
-    clean_label_dataloader = mnist_dd_exp.DataLoaderX(clean_label_dataset, batch_size=batch_size, shuffle=False,
+    clean_label_dataloader = dd_exp.DataLoaderX(clean_label_dataset, batch_size=batch_size, shuffle=False,
                                                       num_workers=0, pin_memory=True)
-    noisy_label_dataloader = mnist_dd_exp.DataLoaderX(noisy_label_dataset, batch_size=batch_size, shuffle=False,
+    noisy_label_dataloader = dd_exp.DataLoaderX(noisy_label_dataset, batch_size=batch_size, shuffle=False,
                                                       num_workers=0, pin_memory=True)
 
     return clean_label_dataloader, noisy_label_dataloader
@@ -151,15 +166,14 @@ def get_hidden_features(model, dataloader):
     return data, hidden_features, predicts, true_labels
 
 
-
 def knn_prediction_test(k):
-    accuracy_list, test_accuracy, test_losses = [], [], []
+    accuracy_list, train_accuracy, test_accuracy, test_losses = [], [], [], []
 
-    for test_number in range(10):
-        directory = "assets/MNIST/sub-set-3d/epoch=%d-noise-%d-model-%d" % (
-        n_epochs, label_noise_ratio * 100, test_number)
+    for test_number in TEST_NUMBERS:
+        directory = "assets/MNIST/N=4000-3d/TEST-%d/epoch=%d-noise-%d-model-%d" % (
+        TEST_GROUP, n_epochs, label_noise_ratio * 100, test_number)
 
-        dataset_path = "data/MNIST/Test-%d" % test_number
+        dataset_path = os.path.join(directory, 'dataset')
         clean_label_dataloader, noisy_label_dataloader = get_clean_noisy_dataloader(dataset_path)
 
         accuracy_list.append([])
@@ -182,12 +196,14 @@ def knn_prediction_test(k):
 
             accuracy_list[test_number].append(correct / 720)
 
-        # Get Parameters and Test Losses
+        # Get Parameters and dataset Losses
         dictionary_path = os.path.join(directory, "dictionary.csv")
+        train_accuracy.append(get_train_accuracy(dictionary_path))
         test_accuracy.append(get_test_accuracy(dictionary_path))
         test_losses.append(get_test_losses(dictionary_path))
 
     accuracy_list = np.mean(np.array(accuracy_list), axis=0)
+    train_accuracy = np.mean(np.array(train_accuracy), axis=0)
     test_accuracy = np.mean(np.array(test_accuracy), axis=0)
     test_losses = np.mean(np.array(test_losses), axis=0)
 
@@ -196,15 +212,23 @@ def knn_prediction_test(k):
     ax = plt.axes()
     scale_function = (lambda x: x ** (1 / 3), lambda x: x ** 3)
     ax.set_xscale('function', functions=scale_function)
-    plt.plot(hidden_units, accuracy_list, marker='o', label='KNN Prediction Accuracy (Noisy Training Data)')
-    plt.plot(hidden_units, test_accuracy, marker='o', label='Test Accuracy (Full Test Set)')
-    plt.plot(hidden_units, test_losses, marker='o', label='Test Losses (Full Test Set)')
+    ax.plot(hidden_units, accuracy_list, marker='o', label='KNN Prediction Accuracy (Noisy Training Data)', color='red')
+    ax.plot(hidden_units, train_accuracy, marker='o', label='Train Accuracy (Full Train Set)', color='orange')
+    ax.plot(hidden_units, test_accuracy, marker='o', label='dataset Accuracy (Full dataset Set)', color='green')
+    ax.legend()
+    ax.set_xlabel('Number of Hidden Neurons (N)')
+    ax.set_ylabel('Accuracy Rate')
+
+    ax2 = ax.twinx()
+    ax2.plot(hidden_units, test_losses, marker='o', label='dataset Losses (Full dataset Set)', color='blue')
+    ax2.set_ylabel('Cross Entropy Loss')
+    ax2.set_ylim([0, 2.75])
+    ax2.legend()
+
     plt.xticks([1, 5, 15, 40, 100, 250, 500, 1000])
-    plt.legend()
-    plt.xlabel('Number of Hidden Neurons (N)')
-    plt.ylabel('Accuracy / Cross Entropy Loss')
-    plt.title('%d-KNN Feature Extraction Test' % k)
-    plt.savefig('%d-NN Feature Extraction Test (epoch = 4000).png' % k)
+    plt.title('%d-KNN Feature Extraction dataset' % k)
+    plt.savefig('assets/MNIST/N=4000-3d/TEST-%d/%d-NN Feature Extraction Test (epoch = 4000).png'
+                % (TEST_GROUP, k))
 
 
 '''
@@ -280,8 +304,8 @@ def class_center_distance_test(d):
     plt.legend()
     plt.xlabel('Number of Parameters (* 10^3)')
     plt.ylabel('Cosine Distance')
-    plt.title('Class Center Distance Test')
-    plt.savefig(os.path.join(plots_path, 'Class Center Distance Test.png'))
+    plt.title('Class Center Distance dataset')
+    plt.savefig(os.path.join(plots_path, 'Class Center Distance dataset.png'))
 
 
 def label_noise_pertubation_test(gaussian_mean, gaussian_std_dev):
@@ -327,13 +351,13 @@ def label_noise_pertubation_test(gaussian_mean, gaussian_std_dev):
     ax = plt.axes()
     scale_function = (lambda x: x ** (1 / 4), lambda x: x ** 4)
     ax.set_xscale('function', functions=scale_function)
-    plt.plot(hidden_units, accuracy_list, marker='o', label='Data Noise Test Error')
+    plt.plot(hidden_units, accuracy_list, marker='o', label='Data Noise dataset Error')
     plt.xticks([1, 5, 15, 40, 100, 250, 500, 1000])
     plt.legend()
     plt.xlabel('Number of hidden units (H)')
     plt.ylabel('Accuracy on Pertubated Noisy Data Points')
     plt.title('Gaussian standard deviation = %lf' % gaussian_std_dev)
-    plt.savefig(os.path.join(plots_path, 'Pertubated Data Test - %lf.png' % gaussian_std_dev))
+    plt.savefig(os.path.join(plots_path, 'Pertubated Data dataset - %lf.png' % gaussian_std_dev))
 '''
 
 if __name__ == '__main__':

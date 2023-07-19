@@ -1,8 +1,0 @@
-CNN_width : 2 ; Parameters : 1826 ; Train Loss : 1.661556 ; Train Acc : 0.465 ; Test Loss : 1.387579 ; Test Acc : 0.530
-CNN_width : 6 ; Parameters : 14530 ; Train Loss : 1.181101 ; Train Acc : 0.639 ; Test Loss : 1.181572 ; Test Acc : 0.607
-CNN_width : 10 ; Parameters : 39330 ; Train Loss : 0.610230 ; Train Acc : 0.805 ; Test Loss : 1.690153 ; Test Acc : 0.550
-CNN_width : 12 ; Parameters : 56266 ; Train Loss : 0.290808 ; Train Acc : 0.911 ; Test Loss : 2.167107 ; Test Acc : 0.541
-CNN_width : 16 ; Parameters : 99210 ; Train Loss : 0.021545 ; Train Acc : 1.000 ; Test Loss : 2.266581 ; Test Acc : 0.571
-CNN_width : 20 ; Parameters : 154250 ; Train Loss : 0.009100 ; Train Acc : 1.000 ; Test Loss : 1.878790 ; Test Acc : 0.609
-CNN_width : 40 ; Parameters : 610890 ; Train Loss : 0.002457 ; Train Acc : 1.000 ; Test Loss : 1.205284 ; Test Acc : 0.700
-CNN_width : 60 ; Parameters : 1369930 ; Train Loss : 0.001589 ; Train Acc : 1.000 ; Test Loss : 1.001539 ; Test Acc : 0.736
