@@ -5,7 +5,6 @@ import torchvision.transforms as transforms
 import numpy as np
 import os
 
-
 class ListDataset(Dataset):
     def __init__(self, data_list):
         self.data_list = data_list
@@ -86,7 +85,6 @@ def save_and_create_training_set(DATASET, sample_size, label_noise_ratio, datase
 
         print("%d Label Noise added to Train Data;\n" % (label_noise_ratio * 100))
 
-        string = str(100 * label_noise_ratio)
         torch.save(train_dataset_2.get_list(),
                    os.path.join(dataset_path, 'subset-noise-%d%%.pth' % (100 * label_noise_ratio)))
 

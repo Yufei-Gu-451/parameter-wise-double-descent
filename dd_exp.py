@@ -15,21 +15,22 @@ import datasets
 # Training Settings
 DATASET = 'CIFAR-10'
 
-N_EPOCHS = 4000
+N_EPOCHS = 100
 N_SAMPLES = 4000
 BATCH_SIZE = 64
 
 TEST_GROUP = 0
-TEST_NUMBERS = [0]
+TEST_NUMBERS = [1]
 
 label_noise_ratio = 0.2
 
 learning_rate_decay = True
-learning_rate = 0.05
+learning_rate = 0.1
 
 save_model = True
 
 #tSNE_Visualization = False
+
 
 # ------------------------------------------------------------------------------------------
 
@@ -57,18 +58,16 @@ def get_train_and_test_dataloader(dataset_path):
 # ------------------------------------------------------------------------------------------
 
 
-
 # Set the neural network model to be used
 def get_model(hidden_unit, device):
     if DATASET == 'MNIST':
         model = models.Simple_FC(hidden_unit)
-        model.initialize()
     elif DATASET == 'CIFAR-10':
         model = models.FiveLayerCNN(hidden_unit)
 
     model = model.to(device)
 
-    print("Model with %d hidden neurons successfully generated;" % hidden_unit)
+    print("\nModel with %d hidden neurons successfully generated;" % hidden_unit)
 
     print('Number of parameters: %d' % sum(p.numel() for p in model.parameters()))
 
@@ -133,7 +132,6 @@ def test(model, device, test_dataloader):
 # ------------------------------------------------------------------------------------------
 
 
-
 '''
 def model_t_sne(model, trainloader, hidden_unit):
     model.eval()
@@ -173,17 +171,18 @@ def model_save(model, epoch, test_accuracy, checkpoint_path):
         'acc': test_accuracy,
         'epoch': epoch,
     }
+
     torch.save(state, os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % hidden_unit))
-    print("Torch saved successfully!")
+    print("Torch saved successfully!\n")
 
 
 def status_save(n_hidden_units, epoch, parameters, train_loss, train_acc, test_loss, test_acc, dictionary_path):
-    print("Hidden Neurons : %d ; Parameters : %d ; Train Loss : %f ; Train Acc : %.3f ; dataset Loss : %f ; "
-          "dataset Acc : %.3f\n" % (n_hidden_units, parameters, train_loss, train_acc, test_loss, test_acc))
+    print("Hidden Neurons : %d ; Parameters : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; "
+          "Test Acc : %.3f\n" % (n_hidden_units, parameters, train_loss, train_acc, test_loss, test_acc))
 
     print('Writing to a csv file...')
     dictionary = {'Hidden Neurons': hidden_unit, 'Epoch': epoch, 'Parameters': parameters, 'Train Loss': train_loss,
-                  'Train Accuracy': train_acc, 'dataset Loss': test_loss, 'dataset Accuracy': test_acc}
+                  'Train Accuracy': train_acc, 'Test Loss': test_loss, 'Test Accuracy': test_acc}
 
     with open(dictionary_path, "a", newline="") as fp:
         # Create a writer object
@@ -204,15 +203,16 @@ def train_and_evaluate_model(model, device, trainloader, testloader, optimizer, 
         model, train_loss, train_acc = train(model, device, trainloader, optimizer, criterion)
         print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f" % (epoch, train_loss, train_acc))
 
-        if epoch % 100 == 0:
+        if epoch % 5 == 0:
             test_loss, test_acc = test(model, device, testloader)
 
             status_save(n_hidden_units, epoch, parameters, train_loss, train_acc, test_loss, test_acc,
                         dictionary_path=dictionary_path)
 
-            if learning_rate_decay:
-                optimizer.param_groups[0]['lr'] = learning_rate / pow(1 + epoch // 50, 0.5)
-                print("Learning Rate : ", optimizer.param_groups[0]['lr'])
+        if learning_rate_decay:
+            # optimizer.param_groups[0]['lr'] = learning_rate / pow(1 + epoch // 50, 0.5)
+            optimizer.param_groups[0]['lr'] = learning_rate / pow(epoch * 10, 0.5)
+            print("Learning Rate : ", optimizer.param_groups[0]['lr'])
 
     '''
     if tSNE_Visualization:
@@ -237,7 +237,7 @@ if __name__ == '__main__':
         hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80,
                         90, 100, 120, 150, 200, 400, 600, 800, 1000]
     elif DATASET == 'CIFAR-10':
-        hidden_units = [1, 2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
+        hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
 
     # Main Program
     for test_number in TEST_NUMBERS:

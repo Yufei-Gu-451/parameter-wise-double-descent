@@ -1,11 +1,6 @@
 import sklearn.decomposition
 import torch
-import torch.nn as nn
 import torchvision.datasets as datasets
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
-from prefetch_generator import BackgroundGenerator
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
@@ -17,18 +12,25 @@ import dd_exp
 import datasets
 import models
 
-hidden_units = [1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100,
-                120, 150, 200, 400, 600, 800, 1000]
+DATASET = 'CIFAR-10'
 
-sample_size = 4000
-n_epochs = 4000
-batch_size = 64
+if DATASET == 'MNIST':
+    hidden_units = [1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100,
+                    120, 150, 200, 400, 600, 800, 1000]
+elif DATASET == 'CIFAR-10':
+    hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
+
+N_EPOCHS = 100
+N_SAMPLES = 4000
+BATCH_SIZE = 64
+
+TEST_GROUP = 0
+TEST_NUMBERS = [1]
+
 label_noise_ratio = 0.2
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-TEST_GROUP = 1
-TEST_NUMBERS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 def add_gaussian_noise(image, mean, std_dev):
     noise = np.random.normal(mean, std_dev, image.shape)
@@ -54,7 +56,7 @@ def get_test_losses(dictionary_path):
         test_losses = []
 
         for row in reader:
-            if int(row['Epoch']) == n_epochs:
+            if int(row['Epoch']) == N_EPOCHS:
                 test_losses.append(float(row['Test Loss']))
 
         return test_losses
@@ -65,7 +67,7 @@ def get_test_accuracy(dictionary_path):
         test_accuracy = []
 
         for row in reader:
-            if int(row['Epoch']) == n_epochs:
+            if int(row['Epoch']) == N_EPOCHS:
                 test_accuracy.append(float(row['Test Accuracy']))
 
         return test_accuracy
@@ -76,7 +78,7 @@ def get_train_accuracy(dictionary_path):
         train_accuracy = []
 
         for row in reader:
-            if int(row['Epoch']) == n_epochs:
+            if int(row['Epoch']) == N_EPOCHS:
                 train_accuracy.append(float(row['Train Accuracy']))
 
         return train_accuracy
@@ -87,7 +89,7 @@ def get_parameters(dictionary_path):
         parameters = []
 
         for row in reader:
-            if int(row['Epoch']) == n_epochs:
+            if int(row['Epoch']) == N_EPOCHS:
                 parameters.append(int(row['Parameters']) // 1000)
 
         return parameters
@@ -101,7 +103,10 @@ def load_dataset(dataset_path):
     return org_train_dataset, noisy_train_dataset
 
 def load_model(checkpoint_path, hidden_unit):
-    model = models.Simple_FC(hidden_unit)
+    if DATASET == 'MNIST':
+        model = models.Simple_FC(hidden_unit)
+    elif DATASET == 'CIFAR-10':
+        model = models.FiveLayerCNN(hidden_unit)
 
     checkpoint = torch.load(os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % hidden_unit))
     model.load_state_dict(checkpoint['net'])
@@ -127,12 +132,12 @@ def get_clean_noisy_dataloader(dataset_path):
     clean_label_dataset = datasets.ListDataset(clean_label_list)
     noisy_label_dataset = datasets.ListDataset(noisy_label_list)
 
-    clean_label_dataloader = dd_exp.DataLoaderX(clean_label_dataset, batch_size=batch_size, shuffle=False,
+    clean_label_dataloader = dd_exp.DataLoaderX(clean_label_dataset, batch_size=BATCH_SIZE, shuffle=False,
                                                       num_workers=0, pin_memory=True)
-    noisy_label_dataloader = dd_exp.DataLoaderX(noisy_label_dataset, batch_size=batch_size, shuffle=False,
+    noisy_label_dataloader = dd_exp.DataLoaderX(noisy_label_dataset, batch_size=BATCH_SIZE, shuffle=False,
                                                       num_workers=0, pin_memory=True)
 
-    return clean_label_dataloader, noisy_label_dataloader
+    return clean_label_dataloader, noisy_label_dataloader, len(noisy_label_list)
 
 def get_hidden_features(model, dataloader):
     # Obtain the hidden features
@@ -158,8 +163,17 @@ def get_hidden_features(model, dataloader):
             for label in labels:
                 true_labels.append(label)
 
-    data = np.array(data).reshape(len(true_labels), 784)
-    hidden_features = np.array(hidden_features).reshape(len(true_labels), model.get_n_hidden_neuron())
+    if DATASET == 'MNIST':
+        image_size = 28 * 28
+        feature_size = model.n_hidden_units
+    elif DATASET == 'CIFAR-10':
+        image_size = 32 * 32 * 3
+        feature_size = model.n_hidden_units * 8
+    else:
+        raise NotImplementedError
+
+    data = np.array(data).reshape(len(true_labels), image_size)
+    hidden_features = np.array(hidden_features).reshape(len(true_labels), feature_size)
     predicts = np.array(predicts).reshape(len(true_labels), )
     true_labels = np.array(true_labels).reshape(len(true_labels), )
 
@@ -167,14 +181,15 @@ def get_hidden_features(model, dataloader):
 
 
 def knn_prediction_test(k):
+    print('\nKNN Prediction Test: k = %d\n' % k)
     accuracy_list, train_accuracy, test_accuracy, test_losses = [], [], [], []
 
-    for test_number in TEST_NUMBERS:
-        directory = "assets/MNIST/N=4000-3d/TEST-%d/epoch=%d-noise-%d-model-%d" % (
-        TEST_GROUP, n_epochs, label_noise_ratio * 100, test_number)
+    for i, test_number in enumerate(TEST_NUMBERS):
+        directory = f"assets/{DATASET}/N=%d-3D/TEST-%d/epoch=%d-noise-%d-model-%d" % (
+        N_SAMPLES, TEST_GROUP, N_EPOCHS, label_noise_ratio * 100, test_number)
 
         dataset_path = os.path.join(directory, 'dataset')
-        clean_label_dataloader, noisy_label_dataloader = get_clean_noisy_dataloader(dataset_path)
+        clean_label_dataloader, noisy_label_dataloader, n_noisy_data = get_clean_noisy_dataloader(dataset_path)
 
         accuracy_list.append([])
 
@@ -192,9 +207,9 @@ def knn_prediction_test(k):
             knn.fit(hidden_features, labels)
 
             correct = sum(knn.predict(hidden_features_2) == labels_2)
-            print(test_number, n, correct)
+            accuracy_list[-1].append(correct / n_noisy_data)
 
-            accuracy_list[test_number].append(correct / 720)
+            print('Test No = %d ; Hidden Units = %d ; Correct = %d' % (test_number, n, correct))
 
         # Get Parameters and dataset Losses
         dictionary_path = os.path.join(directory, "dictionary.csv")
@@ -210,25 +225,33 @@ def knn_prediction_test(k):
     # Plot the Diagram
     plt.figure(figsize=(10, 7))
     ax = plt.axes()
-    scale_function = (lambda x: x ** (1 / 3), lambda x: x ** 3)
-    ax.set_xscale('function', functions=scale_function)
-    ax.plot(hidden_units, accuracy_list, marker='o', label='KNN Prediction Accuracy (Noisy Training Data)', color='red')
-    ax.plot(hidden_units, train_accuracy, marker='o', label='Train Accuracy (Full Train Set)', color='orange')
-    ax.plot(hidden_units, test_accuracy, marker='o', label='dataset Accuracy (Full dataset Set)', color='green')
-    ax.legend()
+
+    if DATASET == 'MNIST':
+        scale_function = (lambda x: x ** (1 / 3), lambda x: x ** 3)
+        ax.set_xscale('function', functions=scale_function)
+
+    ln1 = ax.plot(hidden_units, accuracy_list, marker='o', label='KNN Prediction Accuracy (Noisy Training Data)', color='red')
+    ln2 = ax.plot(hidden_units, train_accuracy, marker='o', label='Train Accuracy (Full Train Set)', color='orange')
+    ln3 = ax.plot(hidden_units, test_accuracy, marker='o', label='Test Accuracy (Full dataset Set)', color='green')
     ax.set_xlabel('Number of Hidden Neurons (N)')
     ax.set_ylabel('Accuracy Rate')
 
     ax2 = ax.twinx()
-    ax2.plot(hidden_units, test_losses, marker='o', label='dataset Losses (Full dataset Set)', color='blue')
+    ln4 = ax2.plot(hidden_units, test_losses, marker='o', label='Test Losses (Full dataset Set)', color='blue')
     ax2.set_ylabel('Cross Entropy Loss')
     ax2.set_ylim([0, 2.75])
-    ax2.legend()
 
-    plt.xticks([1, 5, 15, 40, 100, 250, 500, 1000])
+    if DATASET == 'MNIST':
+        plt.xticks([1, 5, 15, 40, 100, 250, 500, 1000])
+
+    lns = ln1 + ln2 + ln3 + ln4
+    labs = [l.get_label() for l in lns]
+    ax.legend(lns, labs, loc=0)
+    ax.grid()
+
     plt.title('%d-KNN Feature Extraction dataset' % k)
-    plt.savefig('assets/MNIST/N=4000-3d/TEST-%d/%d-NN Feature Extraction Test (epoch = 4000).png'
-                % (TEST_GROUP, k))
+    plt.savefig(f'assets/{DATASET}/N=%d-3D/TEST-%d/%d-NN Feature Extraction Test (epoch = 4000).png'
+                % (N_SAMPLES, TEST_GROUP, k))
 
 
 '''

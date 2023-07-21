@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 
 class Flatten(nn.Module):
-    def forward(self, x): return x.view(x.size(0), x.size(1))
+    def forward(self, x):
+        return x.view(x.size(0), x.size(1))
 
 class FiveLayerCNN(nn.Module):
     def __init__(self, k):
@@ -32,11 +33,42 @@ class FiveLayerCNN(nn.Module):
         self.flatten = Flatten()
         self.fc = nn.Linear(8 * k, 10, bias=True)
 
-    def forward(self, x):
+    def forward(self, x, path='all'):
+        if path == 'all':
+            x = self.forward_1(x)
+            x = self.forward_2(x)
+            x = self.forward_3(x)
+            x = self.forward_4(x)
+            x = self.forward_5(x)
+        elif path == 'half1':
+            x = self.forward_1(x)
+            x = self.forward_2(x)
+            x = self.forward_3(x)
+            x = self.forward_4(x)
+        elif path == 'half2':
+            x = self.forward_5(x)
+        else:
+            raise NotImplementedError
+
+        return x
+
+    def forward_1(self, x):
         x = self.pool1(self.relu1(self.bn1(self.conv1(x))))
+        return x
+
+    def forward_2(self, x):
         x = self.pool2(self.relu2(self.bn2(self.conv2(x))))
+        return x
+
+    def forward_3(self, x):
         x = self.pool3(self.relu3(self.bn3(self.conv3(x))))
+        return x
+
+    def forward_4(self, x):
         x = self.pool4(self.relu4(self.bn4(self.conv4(x))))
+        return x
+
+    def forward_5(self, x):
         x = x.view(x.size(0), -1)
         x = self.fc(x)
         return x
@@ -54,8 +86,7 @@ class Simple_FC(nn.Module):
 
         self.classifier = nn.Linear(n_hidden_units, 10)
 
-    def initialize(self):
-        if self.n_hidden_neuron == 1:
+        if self.n_hidden_units == 1:
             torch.nn.init.xavier_uniform_(self.features[1].weight, gain=1.0)
             torch.nn.init.xavier_uniform_(self.classifier.weight, gain=1.0)
         else:
